@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj": {}
+    "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj": {
+    "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj",
+        "projectUniqueName": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj",
         "projectName": "NubluSoft_NavIndex",
-        "projectPath": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj",
+        "projectPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj",
         "packagesPath": "C:\\Users\\Cristian\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft_NavIndex\\obj\\",
+        "outputPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_NavIndex\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\DevExpress 21.1\\Components\\Offline Packages",

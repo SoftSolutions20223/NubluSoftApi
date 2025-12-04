@@ -454,11 +454,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft\\NubluSoft.csproj",
+      "projectUniqueName": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\NubluSoft.csproj",
       "projectName": "NubluSoft",
-      "projectPath": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft\\NubluSoft.csproj",
+      "projectPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\NubluSoft.csproj",
       "packagesPath": "C:\\Users\\Cristian\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Cristian\\source\\repos\\NubluSoft\\NubluSoft\\obj\\",
+      "outputPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\DevExpress 21.1\\Components\\Offline Packages",

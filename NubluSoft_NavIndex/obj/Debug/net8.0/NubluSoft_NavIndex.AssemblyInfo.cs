@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NubluSoft_NavIndex")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5edd8594f85da2ce2afd54f52e9bb018af40d541")]
 [assembly: System.Reflection.AssemblyProductAttribute("NubluSoft_NavIndex")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NubluSoft_NavIndex")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
