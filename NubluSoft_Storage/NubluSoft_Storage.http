@@ -1,0 +1,6 @@
+@NubluSoft_Storage_HostAddress = http://localhost:5123
+
+GET {{NubluSoft_Storage_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

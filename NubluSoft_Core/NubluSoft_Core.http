@@ -1,0 +1,6 @@
+@NubluSoft_Core_HostAddress = http://localhost:5211
+
+GET {{NubluSoft_Core_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
