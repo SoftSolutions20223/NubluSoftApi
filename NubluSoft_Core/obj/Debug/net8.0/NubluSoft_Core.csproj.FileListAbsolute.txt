@@ -34,3 +34,13 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\NubluSoft_Core.pdb
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\NubluSoft_Core.genruntimeconfig.cache
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\ref\NubluSoft_Core.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Dapper.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.Abstractions.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.JsonWebTokens.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.Logging.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.Protocols.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Microsoft.IdentityModel.Tokens.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\Npgsql.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll

@@ -55,7 +55,7 @@ namespace NubluSoft.Services
 
                 // Mapear refresh token a session id
                 await _db.StringSetAsync(refreshTokenKey, session.SessionId,
-                    TimeSpan.FromDays(_settings.SessionExpirationMinutes / 60 / 24 * 7)); // 7x más que la sesión
+    TimeSpan.FromDays(7));
 
                 _logger.LogDebug("Sesión guardada en Redis: {SessionId} para usuario: {Usuario}",
                     session.SessionId, session.Usuario);

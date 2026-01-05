@@ -1,0 +1,37 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "NubluSoft Core API",
+    "description": "Microservicio de lógica de negocio - NubluSoft",
+    "version": "v1"
+  },
+  "paths": {
+    "/Health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "apiKey",
+        "description": "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
+        "name": "Authorization",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ]
+}

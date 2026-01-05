@@ -1,0 +1,12 @@
+[
+  {
+    "ContainingType": "NubluSoft_Core.Controllers.HealthController",
+    "Method": "Get",
+    "RelativePath": "Health",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  }
+]
