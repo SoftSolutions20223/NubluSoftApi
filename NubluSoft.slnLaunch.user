@@ -1,0 +1,23 @@
+[
+  {
+    "Name": "Nuevo perfil",
+    "Projects": [
+      {
+        "Path": "NubluSoft\\NubluSoft.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "NubluSoft_Core\\NubluSoft_Core.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "NubluSoft_Storage\\NubluSoft_Storage.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "NubluSoft_NavIndex\\NubluSoft_NavIndex.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
