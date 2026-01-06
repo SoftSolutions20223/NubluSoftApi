@@ -1,45 +1,445 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "NubluSoft_Storage",
-    "version": "1.0"
+    "title": "NubluSoft Storage API",
+    "description": "API de almacenamiento de archivos - Google Cloud Storage",
+    "version": "v1"
   },
   "paths": {
-    "/WeatherForecast": {
+    "/api/Health": {
       "get": {
         "tags": [
-          "WeatherForecast"
+          "Health"
         ],
-        "operationId": "GetWeatherForecast",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WeatherForecast"
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Health/detailed": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "NubluSoft_Storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/upload": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "carpetaId": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "nombrePersonalizado": {
+                    "type": "string"
+                  },
+                  "descripcion": {
+                    "type": "string"
+                  },
+                  "tipoDocumental": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "fechaDocumento": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "codigoDocumento": {
+                    "type": "string"
                   }
                 }
               },
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WeatherForecast"
-                  }
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WeatherForecast"
-                  }
+              "encoding": {
+                "file": {
+                  "style": "form"
+                },
+                "carpetaId": {
+                  "style": "form"
+                },
+                "nombrePersonalizado": {
+                  "style": "form"
+                },
+                "descripcion": {
+                  "style": "form"
+                },
+                "tipoDocumental": {
+                  "style": "form"
+                },
+                "fechaDocumento": {
+                  "style": "form"
+                },
+                "codigoDocumento": {
+                  "style": "form"
                 }
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/upload/multiple": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  },
+                  "carpetaId": {
+                    "type": "integer",
+                    "format": "int64"
+                  }
+                }
+              },
+              "encoding": {
+                "files": {
+                  "style": "form"
+                },
+                "carpetaId": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/download-url/{archivoId}": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expirationMinutes",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/download-url/batch": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSignedUrlRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSignedUrlRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSignedUrlRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/download/{archivoId}": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/folder/{carpetaId}/info": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "carpetaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/folder/{carpetaId}/download": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "carpetaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/version": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "archivoId": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "comentario": {
+                    "type": "string"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                },
+                "archivoId": {
+                  "style": "form"
+                },
+                "comentario": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/version/{archivoId}/history": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/version/{archivoId}/{version}/download-url": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/{archivoId}": {
+      "delete": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/{archivoId}/exists": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "parameters": [
+          {
+            "name": "archivoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Storage/stats": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -47,29 +447,38 @@
   },
   "components": {
     "schemas": {
-      "WeatherForecast": {
+      "BatchSignedUrlRequest": {
         "type": "object",
         "properties": {
-          "date": {
-            "type": "string",
-            "format": "date"
+          "archivoIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "nullable": true
           },
-          "temperatureC": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "temperatureF": {
+          "expirationMinutes": {
             "type": "integer",
             "format": "int32",
-            "readOnly": true
-          },
-          "summary": {
-            "type": "string",
             "nullable": true
           }
         },
         "additionalProperties": false
       }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "apiKey",
+        "description": "Ingrese el token JWT: Bearer {token}",
+        "name": "Authorization",
+        "in": "header"
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ]
 }

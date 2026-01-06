@@ -1,12 +1,71 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|solutionrelative:nublusoft\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9B7468A3-1568-4FC0-9A19-A1B11EF1E216}|NubluSoft_Storage\\NubluSoft_Storage.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft_storage\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{9B7468A3-1568-4FC0-9A19-A1B11EF1E216}|NubluSoft_Storage\\NubluSoft_Storage.csproj|solutionrelative:nublusoft_storage\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9B7468A3-1568-4FC0-9A19-A1B11EF1E216}|NubluSoft_Storage\\NubluSoft_Storage.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft_storage\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{9B7468A3-1568-4FC0-9A19-A1B11EF1E216}|NubluSoft_Storage\\NubluSoft_Storage.csproj|solutionrelative:nublusoft_storage\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": []
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\appsettings.json",
+              "RelativeDocumentMoniker": "NubluSoft\\appsettings.json",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\appsettings.json",
+              "RelativeToolTip": "NubluSoft\\appsettings.json",
+              "ViewState": "AgIAABUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-01-06T17:34:04.762Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Storage\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "NubluSoft_Storage\\appsettings.Development.json",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Storage\\appsettings.Development.json",
+              "RelativeToolTip": "NubluSoft_Storage\\appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAADAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-01-06T17:30:05.471Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Storage\\appsettings.json",
+              "RelativeDocumentMoniker": "NubluSoft_Storage\\appsettings.json",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Storage\\appsettings.json",
+              "RelativeToolTip": "NubluSoft_Storage\\appsettings.json",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-01-06T17:30:04.754Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
