@@ -25,19 +25,24 @@ namespace NubluSoft.Middleware
 
         // Mapeo de rutas a microservicios
         private static readonly Dictionary<string, string> RouteMapping = new()
-        {
-            { "/api/usuarios", "CoreService" },
-            { "/api/carpetas", "CoreService" },
-            { "/api/archivos", "CoreService" },
-            { "/api/radicados", "CoreService" },
-            { "/api/oficinas", "CoreService" },
-            { "/api/trd", "CoreService" },
-            { "/api/terceros", "CoreService" },
-            { "/api/transferencias", "CoreService" },
-            { "/api/datosestaticos", "CoreService" },
-            { "/api/storage", "StorageService" },
-            { "/api/navegacion", "NavIndexService" }
-        };
+{
+    // NubluSoft_Core (Puerto 5001) - Todas las rutas de negocio
+    { "/api/usuarios", "CoreService" },
+    { "/api/carpetas", "CoreService" },
+    { "/api/archivos", "CoreService" },      // ← Incluye iniciar-upload, confirmar, download-url
+    { "/api/radicados", "CoreService" },
+    { "/api/oficinas", "CoreService" },
+    { "/api/trd", "CoreService" },
+    { "/api/terceros", "CoreService" },
+    { "/api/transferencias", "CoreService" },
+    { "/api/datosestaticos", "CoreService" },
+    
+    // NubluSoft_Storage (Puerto 5002) - SOLO interno, NO expuesto al frontend
+    // { "/api/storage", "StorageService" },  // ← COMENTADO/ELIMINADO
+    
+    // NubluSoft_NavIndex (Puerto 5003)
+    { "/api/navegacion", "NavIndexService" }
+};
 
         public ProxyMiddleware(
             RequestDelegate next,
@@ -54,6 +59,13 @@ namespace NubluSoft.Middleware
         public async Task InvokeAsync(HttpContext context)
         {
             var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+
+            // Bloquear acceso directo a rutas internas de microservicios
+            if (path.StartsWith("/internal"))
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
 
             // Si es una ruta local, continuar con el pipeline normal
             if (IsLocalRoute(path))

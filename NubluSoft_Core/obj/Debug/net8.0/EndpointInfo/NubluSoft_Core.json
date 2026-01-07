@@ -307,6 +307,144 @@
         }
       }
     },
+    "/api/Archivos/iniciar-upload": {
+      "post": {
+        "tags": [
+          "Archivos"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IniciarUploadRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IniciarUploadRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IniciarUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Archivos/{id}/confirmar-upload": {
+      "post": {
+        "tags": [
+          "Archivos"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmarUploadRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmarUploadRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmarUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Archivos/{id}/cancelar-upload": {
+      "post": {
+        "tags": [
+          "Archivos"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelarUploadRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelarUploadRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelarUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Archivos/{id}/download-url": {
+      "get": {
+        "tags": [
+          "Archivos"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Carpetas": {
       "get": {
         "tags": [
@@ -3785,6 +3923,17 @@
         },
         "additionalProperties": false
       },
+      "CancelarUploadRequest": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "maxLength": 200,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CerrarExpedienteRequest": {
         "type": "object",
         "properties": {
@@ -3795,6 +3944,21 @@
           },
           "observaciones": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfirmarUploadRequest": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "nullable": true
+          },
+          "tamanoReal": {
+            "type": "integer",
+            "format": "int64",
             "nullable": true
           }
         },
@@ -4345,6 +4509,57 @@
         "properties": {
           "observaciones": {
             "maxLength": 500,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IniciarUploadRequest": {
+        "required": [
+          "carpetaId",
+          "contentType",
+          "nombreArchivo",
+          "tamanoBytes"
+        ],
+        "type": "object",
+        "properties": {
+          "carpetaId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nombreArchivo": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "contentType": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "tamanoBytes": {
+            "maximum": 524288000,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int64"
+          },
+          "descripcion": {
+            "maxLength": 500,
+            "type": "string",
+            "nullable": true
+          },
+          "tipoDocumental": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "fechaDocumento": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "codigoDocumento": {
+            "maxLength": 50,
             "type": "string",
             "nullable": true
           }

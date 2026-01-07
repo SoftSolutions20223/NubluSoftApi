@@ -27,6 +27,8 @@
         public string? TipoFirma { get; set; }
         public bool Firmado { get; set; }
         public string? MetadatosAdicionales { get; set; }
+        public string? ContentType { get; set; }
+        public string? EstadoUpload { get; set; }
 
         // Propiedades de navegación
         public string? NombreCarpeta { get; set; }
@@ -35,6 +37,8 @@
         public string? NombreTipoDocumental { get; set; }
         public string? NombreOrigenDocumento { get; set; }
         public string? Extension { get; set; }
+
+      
     }
 
     /// <summary>

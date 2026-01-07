@@ -85,6 +85,21 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ==================== CONFIGURACIÓN DE SERVICIOS EXTERNOS ====================
+
+// Configuración
+builder.Services.Configure<NubluSoft_Core.Configuration.ServiceSettings>(
+    builder.Configuration.GetSection(NubluSoft_Core.Configuration.ServiceSettings.SectionName));
+
+// HttpClient para comunicación con Storage
+var storageUrl = builder.Configuration.GetSection("Services:Storage").Value ?? "http://localhost:5002";
+builder.Services.AddHttpClient<IStorageClientService, StorageClientService>(client =>
+{
+    client.BaseAddress = new Uri(storageUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+
 // ==================== CONTROLLERS ====================
 
 builder.Services.AddControllers();

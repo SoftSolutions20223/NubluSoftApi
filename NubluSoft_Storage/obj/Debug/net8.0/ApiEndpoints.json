@@ -297,5 +297,85 @@
         "StatusCode": 200
       }
     ]
+  },
+  {
+    "ContainingType": "NubluSoft_Storage.Controllers.InternalController",
+    "Method": "DeleteFile",
+    "RelativePath": "internal/Internal/delete",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "objectName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NubluSoft_Storage.Controllers.InternalController",
+    "Method": "CheckExists",
+    "RelativePath": "internal/Internal/exists",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "objectName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NubluSoft_Storage.Controllers.InternalController",
+    "Method": "GetFileInfo",
+    "RelativePath": "internal/Internal/file-info",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "objectName",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NubluSoft_Storage.Controllers.InternalController",
+    "Method": "GenerateDownloadUrl",
+    "RelativePath": "internal/Internal/signed-url/download",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "NubluSoft_Storage.Controllers.GenerateDownloadUrlRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "NubluSoft_Storage.Controllers.InternalController",
+    "Method": "GenerateUploadUrl",
+    "RelativePath": "internal/Internal/signed-url/upload",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "NubluSoft_Storage.Controllers.GenerateUploadUrlRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
   }
 ]

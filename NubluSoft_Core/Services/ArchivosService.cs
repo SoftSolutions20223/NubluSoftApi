@@ -7,13 +7,16 @@ namespace NubluSoft_Core.Services
     public class ArchivosService : IArchivosService
     {
         private readonly IPostgresConnectionFactory _connectionFactory;
+        private readonly IStorageClientService _storageClient;
         private readonly ILogger<ArchivosService> _logger;
 
         public ArchivosService(
             IPostgresConnectionFactory connectionFactory,
+            IStorageClientService storageClient,
             ILogger<ArchivosService> logger)
         {
             _connectionFactory = connectionFactory;
+            _storageClient = storageClient;
             _logger = logger;
         }
 
@@ -133,28 +136,29 @@ namespace NubluSoft_Core.Services
         {
             const string sql = @"
                 SELECT 
-                    a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
-                    a.""FechaSubida"", a.""FechaDocumento"", a.""CodigoDocumento"", a.""Descripcion"",
-                    a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
-                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"", a.""Tamano"", a.""Version"",
-                    a.""TipoFirma"", a.""Firmado"", a.""MetadatosAdicionales"",
-                    c.""Nombre"" AS ""NombreCarpeta"",
-                    u.""Nombres"" || ' ' || u.""Apellidos"" AS ""NombreSubidoPor"",
-                    ta.""Nombre"" AS ""NombreTipoArchivo"",
-                    td.""Nombre"" AS ""NombreTipoDocumental"",
-                    od.""Nombre"" AS ""NombreOrigenDocumento"",
-                    CASE 
-                        WHEN POSITION('.' IN a.""Nombre"") > 0 
-                        THEN LOWER(SUBSTRING(a.""Nombre"" FROM '\.([^.]+)$'))
-                        ELSE NULL
-                    END AS ""Extension""
-                FROM documentos.""Archivos"" a
-                LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
-                LEFT JOIN documentos.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
-                LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
-                LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
-                LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""
-                WHERE a.""Cod"" = @ArchivoId";
+            a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
+            a.""FechaSubida"", a.""FechaDocumento"", a.""CodigoDocumento"", a.""Descripcion"",
+            a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
+            a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"", a.""Tamano"", a.""Version"",
+            a.""TipoFirma"", a.""Firmado"", a.""MetadatosAdicionales"",
+            a.""ContentType"", a.""EstadoUpload"",
+            c.""Nombre"" AS ""NombreCarpeta"",
+            u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreSubidoPor"",
+            ta.""Nombre"" AS ""NombreTipoArchivo"",
+            td.""Nombre"" AS ""NombreTipoDocumental"",
+            od.""Nombre"" AS ""NombreOrigenDocumento"",
+            CASE 
+                WHEN POSITION('.' IN a.""Nombre"") > 0 
+                THEN LOWER(SUBSTRING(a.""Nombre"" FROM '\.([^.]+)$'))
+                ELSE NULL
+            END AS ""Extension""
+        FROM documentos.""Archivos"" a
+        LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
+        LEFT JOIN usuarios.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
+        LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
+        LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
+        LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""::text
+        WHERE a.""Cod"" = @ArchivoId";
 
             try
             {
@@ -385,6 +389,466 @@ namespace NubluSoft_Core.Services
                 _logger.LogError(ex, "Error restaurando versión de archivo {ArchivoId}", archivoId);
                 return new ResultadoArchivo { Exito = false, Mensaje = "Error al restaurar la versión: " + ex.Message };
             }
+        }
+
+        // ==================== UPLOAD DIRECTO (Opción C) ====================
+
+        public async Task<IniciarUploadResponse> IniciarUploadAsync(
+            long usuarioId,
+            long entidadId,
+            IniciarUploadRequest request,
+            string authToken)
+        {
+            try
+            {
+                // 1. Validar que la carpeta existe y el usuario tiene permisos
+                var carpetaValida = await ValidarCarpetaParaUploadAsync(request.CarpetaId, usuarioId, entidadId);
+                if (!carpetaValida.Valida)
+                {
+                    return new IniciarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = carpetaValida.Error ?? "Carpeta no válida para upload"
+                    };
+                }
+
+                // 2. Generar nombre único del objeto en GCS
+                var objectName = GenerarObjectName(entidadId, request.CarpetaId, request.NombreArchivo);
+
+                // 3. Solicitar URL firmada a Storage
+                var urlResult = await _storageClient.GetUploadUrlAsync(
+                    objectName,
+                    request.ContentType,
+                    expirationMinutes: 30,
+                    authToken);
+
+                if (!urlResult.Success || string.IsNullOrEmpty(urlResult.UploadUrl))
+                {
+                    _logger.LogError("Error obteniendo URL de upload: {Error}", urlResult.Error);
+                    return new IniciarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = urlResult.Error ?? "Error al generar URL de upload"
+                    };
+                }
+
+                // 4. Crear registro en BD con estado PENDIENTE
+                var archivoId = await CrearArchivoPendienteAsync(
+                    request.NombreArchivo,
+                    objectName,
+                    request.TamanoBytes,
+                    request.ContentType,
+                    request.CarpetaId,
+                    usuarioId,
+                    request.Descripcion,
+                    request.TipoDocumental,
+                    request.FechaDocumento,
+                    request.CodigoDocumento);
+
+                if (archivoId == null)
+                {
+                    return new IniciarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = "Error al crear registro de archivo"
+                    };
+                }
+
+                _logger.LogInformation(
+                    "Upload iniciado: ArchivoId={ArchivoId}, Object={ObjectName}, Usuario={Usuario}",
+                    archivoId, objectName, usuarioId);
+
+                return new IniciarUploadResponse
+                {
+                    Exito = true,
+                    Mensaje = "Upload iniciado. Use la URL proporcionada para subir el archivo.",
+                    ArchivoId = archivoId,
+                    UploadUrl = urlResult.UploadUrl,
+                    ObjectName = objectName,
+                    UrlExpiraEn = urlResult.ExpiresAt,
+                    SegundosParaExpirar = urlResult.ExpiresInSeconds,
+                    ContentType = request.ContentType
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error iniciando upload para carpeta {CarpetaId}", request.CarpetaId);
+                return new IniciarUploadResponse
+                {
+                    Exito = false,
+                    Mensaje = $"Error al iniciar upload: {ex.Message}"
+                };
+            }
+        }
+
+        public async Task<ConfirmarUploadResponse> ConfirmarUploadAsync(
+            long archivoId,
+            long usuarioId,
+            ConfirmarUploadRequest request,
+            string authToken)
+        {
+            try
+            {
+                // 1. Obtener el archivo pendiente
+                var archivo = await ObtenerArchivoPendienteAsync(archivoId);
+                if (archivo == null)
+                {
+                    return new ConfirmarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = "Archivo no encontrado o ya fue confirmado"
+                    };
+                }
+
+                // 2. Verificar que el archivo existe en GCS
+                var existeEnGcs = await _storageClient.FileExistsAsync(archivo.Ruta, authToken);
+                if (!existeEnGcs)
+                {
+                    return new ConfirmarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = "El archivo no se encontró en el storage. El upload no se completó."
+                    };
+                }
+
+                // 3. Obtener información del archivo en GCS
+                var fileInfo = await _storageClient.GetFileInfoAsync(archivo.Ruta, authToken);
+
+                // 4. Actualizar registro en BD: Estado = ACTIVO
+                var actualizado = await ConfirmarArchivoEnBdAsync(
+                    archivoId,
+                    usuarioId,
+                    request.Hash ?? fileInfo?.Md5Hash,
+                    request.TamanoReal ?? fileInfo?.Size ?? archivo.Tamano);
+
+                if (!actualizado)
+                {
+                    return new ConfirmarUploadResponse
+                    {
+                        Exito = false,
+                        Mensaje = "Error al confirmar archivo en base de datos"
+                    };
+                }
+
+                _logger.LogInformation(
+                    "Upload confirmado: ArchivoId={ArchivoId}, Size={Size}, Usuario={Usuario}",
+                    archivoId, fileInfo?.Size ?? archivo.Tamano, usuarioId);
+
+                return new ConfirmarUploadResponse
+                {
+                    Exito = true,
+                    Mensaje = "Archivo subido y confirmado exitosamente",
+                    ArchivoId = archivoId,
+                    Nombre = archivo.Nombre,
+                    Ruta = archivo.Ruta,
+                    Tamano = request.TamanoReal ?? fileInfo?.Size ?? archivo.Tamano,
+                    Hash = request.Hash ?? fileInfo?.Md5Hash
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirmando upload de archivo {ArchivoId}", archivoId);
+                return new ConfirmarUploadResponse
+                {
+                    Exito = false,
+                    Mensaje = $"Error al confirmar upload: {ex.Message}"
+                };
+            }
+        }
+
+        public async Task<ResultadoArchivo> CancelarUploadAsync(
+            long archivoId,
+            long usuarioId,
+            string? motivo = null,
+            string? authToken = null)
+        {
+            try
+            {
+                // 1. Obtener el archivo pendiente
+                var archivo = await ObtenerArchivoPendienteAsync(archivoId);
+                if (archivo == null)
+                {
+                    return new ResultadoArchivo
+                    {
+                        Exito = false,
+                        Mensaje = "Archivo no encontrado o no está pendiente"
+                    };
+                }
+
+                // 2. Intentar eliminar de GCS (por si se subió parcialmente)
+                if (!string.IsNullOrEmpty(authToken))
+                {
+                    await _storageClient.DeleteFileAsync(archivo.Ruta, authToken);
+                }
+
+                // 3. Eliminar registro de BD
+                const string sql = @"
+                DELETE FROM documentos.""Archivos""
+                WHERE ""Cod"" = @ArchivoId AND ""EstadoUpload"" = 'PENDIENTE'";
+
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                var deleted = await connection.ExecuteAsync(sql, new { ArchivoId = archivoId });
+
+                if (deleted > 0)
+                {
+                    _logger.LogInformation(
+                        "Upload cancelado: ArchivoId={ArchivoId}, Motivo={Motivo}, Usuario={Usuario}",
+                        archivoId, motivo ?? "No especificado", usuarioId);
+
+                    return new ResultadoArchivo
+                    {
+                        Exito = true,
+                        Mensaje = "Upload cancelado exitosamente"
+                    };
+                }
+
+                return new ResultadoArchivo
+                {
+                    Exito = false,
+                    Mensaje = "No se pudo cancelar el upload"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cancelando upload de archivo {ArchivoId}", archivoId);
+                return new ResultadoArchivo
+                {
+                    Exito = false,
+                    Mensaje = $"Error al cancelar upload: {ex.Message}"
+                };
+            }
+        }
+
+        public async Task<DescargarArchivoResponse> ObtenerUrlDescargaAsync(
+            long archivoId,
+            long usuarioId,
+            string authToken)
+        {
+            try
+            {
+                // 1. Obtener archivo
+                var archivo = await ObtenerPorIdAsync(archivoId);
+                if (archivo == null)
+                {
+                    return new DescargarArchivoResponse
+                    {
+                        Exito = false,
+                        Mensaje = "Archivo no encontrado"
+                    };
+                }
+
+                // 2. Solicitar URL de descarga
+                var urlResult = await _storageClient.GetDownloadUrlAsync(
+                    archivo.Ruta,
+                    archivo.Nombre,
+                    expirationMinutes: 15,
+                    authToken);
+
+                if (!urlResult.Success || string.IsNullOrEmpty(urlResult.DownloadUrl))
+                {
+                    return new DescargarArchivoResponse
+                    {
+                        Exito = false,
+                        Mensaje = urlResult.Error ?? "Error al generar URL de descarga"
+                    };
+                }
+
+                return new DescargarArchivoResponse
+                {
+                    Exito = true,
+                    Mensaje = "URL de descarga generada",
+                    ArchivoId = archivoId,
+                    Nombre = archivo.Nombre,
+                    DownloadUrl = urlResult.DownloadUrl,
+                    UrlExpiraEn = urlResult.ExpiresAt,
+                    SegundosParaExpirar = urlResult.ExpiresInSeconds,
+                    Tamano = archivo.Tamano,
+                    ContentType = archivo.ContentType
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo URL de descarga para archivo {ArchivoId}", archivoId);
+                return new DescargarArchivoResponse
+                {
+                    Exito = false,
+                    Mensaje = $"Error: {ex.Message}"
+                };
+            }
+        }
+
+        // ==================== MÉTODOS PRIVADOS PARA UPLOAD ====================
+
+        private string GenerarObjectName(long entidadId, long carpetaId, string nombreArchivo)
+        {
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            var guid = Guid.NewGuid().ToString("N")[..8];
+            var extension = Path.GetExtension(nombreArchivo);
+            var nombreBase = Path.GetFileNameWithoutExtension(nombreArchivo);
+
+            // Sanitizar nombre
+            var nombreLimpio = string.Join("_", nombreBase.Split(Path.GetInvalidFileNameChars()));
+            if (nombreLimpio.Length > 50) nombreLimpio = nombreLimpio[..50];
+
+            return $"entidad_{entidadId}/carpeta_{carpetaId}/{timestamp}_{guid}_{nombreLimpio}{extension}";
+        }
+
+        private async Task<(bool Valida, string? Error)> ValidarCarpetaParaUploadAsync(
+            long carpetaId, long usuarioId, long entidadId)
+        {
+            const string sql = @"
+            SELECT 
+                c.""Cod"",
+                c.""Estado"",
+                c.""Entidad"",
+                c.""EstadoCarpeta""
+            FROM documentos.""Carpetas"" c
+            WHERE c.""Cod"" = @CarpetaId";
+
+            using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+
+            var carpeta = await connection.QueryFirstOrDefaultAsync<dynamic>(sql, new { CarpetaId = carpetaId });
+
+            if (carpeta == null)
+                return (false, "Carpeta no encontrada");
+
+            if (carpeta.Estado == false)
+                return (false, "La carpeta está eliminada");
+
+            if (carpeta.Entidad != entidadId)
+                return (false, "No tiene acceso a esta carpeta");
+
+            // Verificar si la carpeta está cerrada (EstadoCarpeta = 2 típicamente)
+            if (carpeta.EstadoCarpeta == 2)
+                return (false, "La carpeta está cerrada, no se pueden agregar archivos");
+
+            return (true, null);
+        }
+
+        private async Task<long?> CrearArchivoPendienteAsync(
+            string nombre,
+            string ruta,
+            long tamano,
+            string contentType,
+            long carpetaId,
+            long usuarioId,
+            string? descripcion,
+            long? tipoDocumental,
+            DateTime? fechaDocumento,
+            string? codigoDocumento)
+        {
+            const string sql = @"
+            INSERT INTO documentos.""Archivos"" (
+                ""Nombre"", ""Ruta"", ""Tamano"", ""ContentType"", ""Carpeta"",
+                ""UsuarioCreador"", ""FechaCreacion"", ""Estado"", ""EstadoUpload"",
+                ""Descripcion"", ""TipoDocumental"", ""FechaDocumento"", ""CodigoDocumento"",
+                ""VersionActual""
+            ) VALUES (
+                @Nombre, @Ruta, @Tamano, @ContentType, @Carpeta,
+                @Usuario, NOW(), true, 'PENDIENTE',
+                @Descripcion, @TipoDocumental, @FechaDocumento, @CodigoDocumento,
+                1
+            ) RETURNING ""Cod""";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                var archivoId = await connection.QueryFirstAsync<long>(sql, new
+                {
+                    Nombre = nombre,
+                    Ruta = ruta,
+                    Tamano = tamano,
+                    ContentType = contentType,
+                    Carpeta = carpetaId,
+                    Usuario = usuarioId,
+                    Descripcion = descripcion,
+                    TipoDocumental = tipoDocumental,
+                    FechaDocumento = fechaDocumento,
+                    CodigoDocumento = codigoDocumento
+                });
+
+                return archivoId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creando archivo pendiente");
+                return null;
+            }
+        }
+
+        private async Task<ArchivosPendiente?> ObtenerArchivoPendienteAsync(long archivoId)
+        {
+            const string sql = @"
+            SELECT 
+                ""Cod"" as ArchivoId,
+                ""Nombre"",
+                ""Ruta"",
+                ""Tamano"",
+                ""ContentType"",
+                ""Carpeta"" as CarpetaId
+            FROM documentos.""Archivos""
+            WHERE ""Cod"" = @ArchivoId AND ""EstadoUpload"" = 'PENDIENTE'";
+
+            using var connection = _connectionFactory.CreateConnection();
+            await connection.OpenAsync();
+
+            return await connection.QueryFirstOrDefaultAsync<ArchivosPendiente>(sql, new { ArchivoId = archivoId });
+        }
+
+        private async Task<bool> ConfirmarArchivoEnBdAsync(
+            long archivoId,
+            long usuarioId,
+            string? hash,
+            long tamano)
+        {
+            const string sql = @"
+            UPDATE documentos.""Archivos""
+            SET 
+                ""EstadoUpload"" = 'COMPLETADO',
+                ""Hash"" = @Hash,
+                ""Tamano"" = @Tamano,
+                ""FechaModificacion"" = NOW(),
+                ""UsuarioModificador"" = @Usuario
+            WHERE ""Cod"" = @ArchivoId AND ""EstadoUpload"" = 'PENDIENTE'";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                var updated = await connection.ExecuteAsync(sql, new
+                {
+                    ArchivoId = archivoId,
+                    Hash = hash,
+                    Tamano = tamano,
+                    Usuario = usuarioId
+                });
+
+                return updated > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error confirmando archivo {ArchivoId}", archivoId);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// DTO interno para archivos pendientes
+        /// </summary>
+        private class ArchivosPendiente
+        {
+            public long ArchivoId { get; set; }
+            public string Nombre { get; set; } = string.Empty;
+            public string Ruta { get; set; } = string.Empty;
+            public long Tamano { get; set; }
+            public string? ContentType { get; set; }
+            public long CarpetaId { get; set; }
         }
     }
 }

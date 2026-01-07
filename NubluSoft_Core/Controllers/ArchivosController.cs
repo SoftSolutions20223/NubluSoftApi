@@ -165,5 +165,101 @@ namespace NubluSoft_Core.Controllers
 
             return Ok(new { resultado.Mensaje, resultado.Version });
         }
+
+        // ==================== UPLOAD DIRECTO (Opción C) ====================
+
+        /// <summary>
+        /// Inicia el proceso de upload directo a GCS
+        /// Retorna URL firmada para que el frontend suba directamente
+        /// </summary>
+        [HttpPost("iniciar-upload")]
+        public async Task<IActionResult> IniciarUpload([FromBody] IniciarUploadRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var usuarioId = User.GetUserId();
+            var entidadId = User.GetEntidadId();
+
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            // Obtener token para pasar a Storage
+            var authToken = HttpContext.Request.Headers["Authorization"]
+                .FirstOrDefault()?.Replace("Bearer ", "") ?? string.Empty;
+
+            var resultado = await _service.IniciarUploadAsync(usuarioId, entidadId, request, authToken);
+
+            if (!resultado.Exito)
+                return BadRequest(resultado);
+
+            return Ok(resultado);
+        }
+
+        /// <summary>
+        /// Confirma que el upload se completó exitosamente
+        /// </summary>
+        [HttpPost("{id}/confirmar-upload")]
+        public async Task<IActionResult> ConfirmarUpload(long id, [FromBody] ConfirmarUploadRequest request)
+        {
+            var usuarioId = User.GetUserId();
+
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            var authToken = HttpContext.Request.Headers["Authorization"]
+                .FirstOrDefault()?.Replace("Bearer ", "") ?? string.Empty;
+
+            var resultado = await _service.ConfirmarUploadAsync(id, usuarioId, request, authToken);
+
+            if (!resultado.Exito)
+                return BadRequest(resultado);
+
+            return Ok(resultado);
+        }
+
+        /// <summary>
+        /// Cancela un upload pendiente
+        /// </summary>
+        [HttpPost("{id}/cancelar-upload")]
+        public async Task<IActionResult> CancelarUpload(long id, [FromBody] CancelarUploadRequest? request)
+        {
+            var usuarioId = User.GetUserId();
+
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            var authToken = HttpContext.Request.Headers["Authorization"]
+                .FirstOrDefault()?.Replace("Bearer ", "") ?? string.Empty;
+
+            var resultado = await _service.CancelarUploadAsync(id, usuarioId, request?.Motivo, authToken);
+
+            if (!resultado.Exito)
+                return BadRequest(resultado);
+
+            return Ok(resultado);
+        }
+
+        /// <summary>
+        /// Obtiene URL firmada para descargar un archivo
+        /// </summary>
+        [HttpGet("{id}/download-url")]
+        public async Task<IActionResult> GetDownloadUrl(long id)
+        {
+            var usuarioId = User.GetUserId();
+
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            var authToken = HttpContext.Request.Headers["Authorization"]
+                .FirstOrDefault()?.Replace("Bearer ", "") ?? string.Empty;
+
+            var resultado = await _service.ObtenerUrlDescargaAsync(id, usuarioId, authToken);
+
+            if (!resultado.Exito)
+                return NotFound(resultado);
+
+            return Ok(resultado);
+        }
     }
 }
