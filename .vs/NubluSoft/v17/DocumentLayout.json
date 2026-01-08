@@ -1,12 +1,37 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{51D5929E-6167-4B73-860E-FB8E713E2779}|NubluSoft_Core\\NubluSoft_Core.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft_core\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{51D5929E-6167-4B73-860E-FB8E713E2779}|NubluSoft_Core\\NubluSoft_Core.csproj|solutionrelative:nublusoft_core\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": []
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Core\\appsettings.json",
+              "RelativeDocumentMoniker": "NubluSoft_Core\\appsettings.json",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Core\\appsettings.json",
+              "RelativeToolTip": "NubluSoft_Core\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACEAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-01-08T18:44:33.152Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }
