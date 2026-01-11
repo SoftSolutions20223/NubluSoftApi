@@ -9,7 +9,7 @@ namespace NubluSoft_Storage.Controllers
     /// Controller para health checks
     /// </summary>
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("[controller]")]
     public class HealthController : ControllerBase
     {
         private readonly ILogger<HealthController> _logger;

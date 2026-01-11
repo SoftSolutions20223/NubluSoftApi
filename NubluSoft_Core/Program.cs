@@ -1,111 +1,71 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using NubluSoft_Core.Configuration;
+using NubluSoft_Core.Extensions;
+using NubluSoft_Core.Hubs;
+using NubluSoft_Core.Listeners;
 using NubluSoft_Core.Services;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==================== CONFIGURACIÓN ====================
 
-// Configurar JWT Settings
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.Configure<ServiceSettings>(
+    builder.Configuration.GetSection(ServiceSettings.SectionName));
 
 // ==================== SERVICIOS ====================
 
-// PostgreSQL Connection Factory
+// Conexión a PostgreSQL
 builder.Services.AddSingleton<IPostgresConnectionFactory, PostgresConnectionFactory>();
 
+// Cliente HTTP para NubluSoft_Storage
+builder.Services.AddStorageClient(builder.Configuration);
+
 // Servicios de negocio
-builder.Services.AddScoped<IDatosEstaticosService, DatosEstaticosService>();
-builder.Services.AddScoped<IOficinasService, OficinasService>();
 builder.Services.AddScoped<IUsuariosService, UsuariosService>();
 builder.Services.AddScoped<ICarpetasService, CarpetasService>();
 builder.Services.AddScoped<IArchivosService, ArchivosService>();
-builder.Services.AddScoped<ITRDService, TRDService>();
 builder.Services.AddScoped<IRadicadosService, RadicadosService>();
+builder.Services.AddScoped<IOficinasService, OficinasService>();
+builder.Services.AddScoped<ITRDService, TRDService>();
 builder.Services.AddScoped<ITercerosService, TercerosService>();
 builder.Services.AddScoped<ITransferenciasService, TransferenciasService>();
+builder.Services.AddScoped<IDatosEstaticosService, DatosEstaticosService>();
 
-// ==================== AUTENTICACIÓN JWT ====================
+// ==================== NOTIFICACIONES ====================
 
-var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
-    ?? throw new InvalidOperationException("JwtSettings no configurado");
+// Servicio de notificaciones
+builder.Services.AddScoped<INotificacionService, NotificacionService>();
 
-var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
+// Servicio para enviar notificaciones vía Hub (Singleton porque IHubContext es thread-safe)
+builder.Services.AddSingleton<INotificacionesHubService, NotificacionesHubService>();
 
-builder.Services.AddAuthentication(options =>
+// Background service para escuchar PostgreSQL NOTIFY
+builder.Services.AddHostedService<PostgresNotificacionListener>();
+
+// SignalR para WebSockets
+builder.Services.AddSignalR(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = jwtSettings.Issuer,
-        ValidateAudience = true,
-        ValidAudience = jwtSettings.Audience,
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
-        {
-            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("JWT Auth failed: {Error}", context.Exception.Message);
-            return Task.CompletedTask;
-        }
-    };
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 1024 * 1024; // 1MB
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
 
+// ==================== AUTENTICACIÓN ====================
+
+// Autenticación JWT
+builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
-// ==================== CORS ====================
+// CORS
+builder.Services.AddCoreCors(builder.Configuration);
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? new[] { "http://localhost:4200", "http://localhost:5008" };
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
-    });
-});
-
-// ==================== CONFIGURACIÓN DE SERVICIOS EXTERNOS ====================
-
-// Configuración
-builder.Services.Configure<NubluSoft_Core.Configuration.ServiceSettings>(
-    builder.Configuration.GetSection(NubluSoft_Core.Configuration.ServiceSettings.SectionName));
-
-// HttpClient para comunicación con Storage
-var storageUrl = builder.Configuration.GetSection("Services:Storage").Value ?? "http://localhost:5002";
-builder.Services.AddHttpClient<IStorageClientService, StorageClientService>(client =>
-{
-    client.BaseAddress = new Uri(storageUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
-
-// ==================== CONTROLLERS ====================
-
+// Controllers
 builder.Services.AddControllers();
 
-// ==================== SWAGGER ====================
-
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -113,18 +73,16 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "NubluSoft Core API",
         Version = "v1",
-        Description = "API de gestión documental - Microservicio Core"
+        Description = "Microservicio de lógica de negocio"
     });
 
-    // Configurar autenticación JWT en Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
+        Description = "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Ingrese el token JWT: Bearer {token}"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -143,41 +101,59 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ==================== BUILD APP ====================
-
 var app = builder.Build();
 
-// ==================== MIDDLEWARE PIPELINE ====================
+// ==================== MIDDLEWARE ====================
 
-// Swagger (siempre habilitado para desarrollo)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "NubluSoft Core API v1");
-        c.RoutePrefix = "swagger";
     });
 }
 
-// CORS
-app.UseCors("AllowAll");
+app.UseCors("CorePolicy");
 
-// Autenticación y Autorización
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health Check endpoint
-app.MapGet("/health", () => Results.Ok(new
-{
-    Status = "Healthy",
-    Service = "NubluSoft_Core",
-    Timestamp = DateTime.UtcNow
-})).AllowAnonymous();
-
-// Controllers
 app.MapControllers();
 
-// ==================== RUN ====================
+// Mapear el Hub de SignalR para notificaciones en tiempo real
+app.MapHub<NotificacionesHub>("/ws/notificaciones");
+
+// ==================== INICIO ====================
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var port = builder.Configuration["ServiceInfo:Port"] ?? "5001";
+
+logger.LogInformation("==============================================");
+logger.LogInformation("  NubluSoft_Core iniciando en puerto {Port}", port);
+logger.LogInformation("==============================================");
+
+try
+{
+    using var scope = app.Services.CreateScope();
+
+    // Verificar PostgreSQL
+    var pgFactory = scope.ServiceProvider.GetRequiredService<IPostgresConnectionFactory>();
+    using var conn = pgFactory.CreateConnection();
+    await conn.OpenAsync();
+    logger.LogInformation("[OK] PostgreSQL conectado");
+
+    // Verificar configuración de Storage
+    var storageUrl = builder.Configuration["Services:Storage"];
+    logger.LogInformation("[OK] Storage URL configurada: {Url}", storageUrl);
+
+    // Log de notificaciones
+    logger.LogInformation("[OK] PostgreSQL NOTIFY listener activo (canal: notificaciones_cambios)");
+    logger.LogInformation("[OK] WebSocket Hub disponible en /ws/notificaciones");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Error verificando conexiones al inicio");
+}
 
 app.Run();

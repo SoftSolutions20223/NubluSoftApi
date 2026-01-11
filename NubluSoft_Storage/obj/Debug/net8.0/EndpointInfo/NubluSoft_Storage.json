@@ -2,11 +2,11 @@
   "openapi": "3.0.1",
   "info": {
     "title": "NubluSoft Storage API",
-    "description": "API de almacenamiento de archivos - Google Cloud Storage",
+    "description": "Microservicio de almacenamiento con Google Cloud Storage",
     "version": "v1"
   },
   "paths": {
-    "/api/Health": {
+    "/Health": {
       "get": {
         "tags": [
           "Health"
@@ -18,7 +18,7 @@
         }
       }
     },
-    "/api/Health/detailed": {
+    "/Health/detailed": {
       "get": {
         "tags": [
           "Health"
@@ -147,18 +147,6 @@
               "type": "string"
             }
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/health": {
-      "get": {
-        "tags": [
-          "NubluSoft_Storage"
         ],
         "responses": {
           "200": {
@@ -633,7 +621,7 @@
     "securitySchemes": {
       "Bearer": {
         "type": "apiKey",
-        "description": "Ingrese el token JWT: Bearer {token}",
+        "description": "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
         "name": "Authorization",
         "in": "header"
       }

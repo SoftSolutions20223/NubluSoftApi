@@ -1,5 +1,8 @@
 ﻿namespace NubluSoft_Core.Configuration
 {
+    /// <summary>
+    /// Configuración JWT - DEBE ser idéntica al Gateway
+    /// </summary>
     public class JwtSettings
     {
         public const string SectionName = "Jwt";

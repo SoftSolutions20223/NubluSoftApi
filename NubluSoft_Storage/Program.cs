@@ -1,18 +1,18 @@
-using Google.Apis.Storage.v1;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using NubluSoft_Storage.Configuration;
 using NubluSoft_Storage.Services;
-using System.Runtime;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ==================== CONFIGURACIÓN ====================
 
-builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
-builder.Services.Configure<GcsSettings>(builder.Configuration.GetSection("GoogleCloudStorage"));
+builder.Services.Configure<JwtSettings>(
+    builder.Configuration.GetSection(JwtSettings.SectionName));
+builder.Services.Configure<GcsSettings>(
+    builder.Configuration.GetSection(GcsSettings.SectionName));
 
 // ==================== SERVICIOS ====================
 
@@ -21,13 +21,10 @@ builder.Services.AddSingleton<IPostgresConnectionFactory, PostgresConnectionFact
 
 // Google Cloud Storage
 builder.Services.AddSingleton<IGcsStorageService, GcsStorageService>();
+builder.Services.AddScoped<IStorageService, StorageService>();
 
-// Servicio orquestador
-builder.Services.AddScoped<IStorageService, NubluSoft_Storage.Services.StorageService>();
-
-// ==================== JWT ====================
-
-var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
+// JWT Authentication (idéntica al Gateway)
+var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings no configurado");
 
 var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
@@ -52,30 +49,41 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
     };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices
+                .GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Autenticación fallida: {Message}", context.Exception.Message);
+            return Task.CompletedTask;
+        }
+    };
 });
 
-// ==================== CORS ====================
+builder.Services.AddAuthorization();
 
+// CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:4200", "http://localhost:5008" };
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("StoragePolicy", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
-// ==================== CONTROLLERS ====================
-
+// Controllers
 builder.Services.AddControllers();
 
-// ==================== SWAGGER ====================
-
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -83,17 +91,16 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "NubluSoft Storage API",
         Version = "v1",
-        Description = "API de almacenamiento de archivos - Google Cloud Storage"
+        Description = "Microservicio de almacenamiento con Google Cloud Storage"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
+        Description = "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Ingrese el token JWT: Bearer {token}"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -112,21 +119,6 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// ==================== REQUEST SIZE LIMITS ====================
-
-var maxFileSizeMB = builder.Configuration.GetValue<int>("GoogleCloudStorage:MaxFileSizeMB", 500);
-var maxFileSize = maxFileSizeMB * 1024L * 1024L;
-
-builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
-{
-    options.MultipartBodyLengthLimit = maxFileSize;
-});
-
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.Limits.MaxRequestBodySize = maxFileSize;
-});
-
 var app = builder.Build();
 
 // ==================== MIDDLEWARE ====================
@@ -140,26 +132,37 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseCors("AllowAll");
+app.UseCors("StoragePolicy");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// ==================== HEALTH CHECK ====================
-
-app.MapGet("/health", () => Results.Ok(new
-{
-    Status = "Healthy",
-    Service = "NubluSoft_Storage",
-    Timestamp = DateTime.UtcNow
-})).AllowAnonymous();
-
-// ==================== STARTUP LOG ====================
+// ==================== INICIO ====================
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var port = builder.Configuration.GetValue<int>("ServiceInfo:Port", 5002);
-logger.LogInformation("NubluSoft_Storage iniciado en puerto {Port}", port);
+var port = builder.Configuration["ServiceInfo:Port"] ?? "5002";
+
+logger.LogInformation("==============================================");
+logger.LogInformation("  NubluSoft_Storage iniciando en puerto {Port}", port);
+logger.LogInformation("==============================================");
+
+try
+{
+    // Verificar PostgreSQL
+    var pgFactory = app.Services.GetRequiredService<IPostgresConnectionFactory>();
+    using var conn = pgFactory.CreateConnection();
+    await conn.OpenAsync();
+    logger.LogInformation("[OK] PostgreSQL conectado: {Info}", pgFactory.GetConnectionInfo());
+
+    // Verificar GCS
+    var gcsService = app.Services.GetRequiredService<IGcsStorageService>();
+    logger.LogInformation("[OK] GCS configurado para bucket: {Bucket}", gcsService.BucketName);
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Error verificando conexiones al inicio");
+}
 
 app.Run();

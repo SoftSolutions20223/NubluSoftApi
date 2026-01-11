@@ -1,12 +1,8 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "NubluSoft API Gateway",
-    "description": "API Gateway para el Sistema de Gestión Documental NubluSoft",
-    "contact": {
-      "name": "NubluSoft",
-      "email": "soporte@nublusoft.com"
-    },
+    "title": "NubluSoft Gateway API",
+    "description": "API Gateway para el sistema de gestión documental NubluSoft",
     "version": "v1"
   },
   "paths": {
@@ -131,23 +127,47 @@
           }
         }
       }
+    },
+    "/Health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/Health/detailed": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
       "LoginRequest": {
         "required": [
-          "Contraseña",
-          "Usuario"
+          "contraseña",
+          "usuario"
         ],
         "type": "object",
         "properties": {
-          "Usuario": {
+          "usuario": {
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
           },
-          "Contraseña": {
+          "contraseña": {
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
@@ -157,16 +177,16 @@
       },
       "RefreshTokenRequest": {
         "required": [
-          "RefreshToken",
-          "Token"
+          "refreshToken",
+          "token"
         ],
         "type": "object",
         "properties": {
-          "Token": {
+          "token": {
             "minLength": 1,
             "type": "string"
           },
-          "RefreshToken": {
+          "refreshToken": {
             "minLength": 1,
             "type": "string"
           }
@@ -176,10 +196,10 @@
     },
     "securitySchemes": {
       "Bearer": {
-        "type": "http",
-        "description": "Ingrese el token JWT en el formato: Bearer {token}",
-        "scheme": "Bearer",
-        "bearerFormat": "JWT"
+        "type": "apiKey",
+        "description": "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
+        "name": "Authorization",
+        "in": "header"
       }
     }
   },

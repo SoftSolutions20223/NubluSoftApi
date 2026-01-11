@@ -1,0 +1,6 @@
+@NubluSoft_Signature_HostAddress = http://localhost:5212
+
+GET {{NubluSoft_Signature_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

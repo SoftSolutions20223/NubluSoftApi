@@ -5,20 +5,22 @@ using NubluSoft.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ============================================
-// 1. CONFIGURACIÓN DE SERVICIOS
-// ============================================
+// ==================== CONFIGURACIÓN ====================
 
-// Configuraciones desde appsettings.json
 builder.Services.AddNubluSoftConfiguration(builder.Configuration);
 
-// Autenticación JWT
-builder.Services.AddJwtAuthentication(builder.Configuration);
+// ==================== SERVICIOS ====================
 
-// Autorización
+// Servicios de autenticación
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<IJwtService, JwtService>();
+builder.Services.AddScoped<IRedisSessionService, RedisSessionService>();
+
+// JWT Authentication (con soporte WebSocket)
+builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
-// Redis para sesiones
+// Redis
 builder.Services.AddRedisCache(builder.Configuration);
 
 // CORS
@@ -28,52 +30,29 @@ builder.Services.AddNubluSoftCors(builder.Configuration);
 builder.Services.AddMicroserviceClients(builder.Configuration);
 
 // Controllers
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.PropertyNamingPolicy = null; // Mantener PascalCase
-        options.JsonSerializerOptions.WriteIndented = true;
-    });
+builder.Services.AddControllers();
 
-// ============================================
-// 2. INYECCIÓN DE DEPENDENCIAS - SERVICIOS
-// ============================================
-
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IRedisSessionService, RedisSessionService>();
-
-// ============================================
-// 3. SWAGGER / OPENAPI
-// ============================================
-
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddSwaggerGen(c =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "NubluSoft API Gateway",
+        Title = "NubluSoft Gateway API",
         Version = "v1",
-        Description = "API Gateway para el Sistema de Gestión Documental NubluSoft",
-        Contact = new OpenApiContact
-        {
-            Name = "NubluSoft",
-            Email = "soporte@nublusoft.com"
-        }
+        Description = "API Gateway para el sistema de gestión documental NubluSoft"
     });
 
-    // Configurar autenticación JWT en Swagger
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
+        Description = "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
         Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Ingrese el token JWT en el formato: Bearer {token}"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
@@ -89,72 +68,69 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// ============================================
-// 4. HEALTH CHECKS (Opcional)
-// ============================================
-
-builder.Services.AddHealthChecks();
-
-// ============================================
-// BUILD APP
-// ============================================
-
 var app = builder.Build();
 
-// ============================================
-// 5. PIPELINE DE MIDDLEWARE (ORDEN IMPORTANTE)
-// ============================================
+// ==================== MIDDLEWARE ====================
 
-// Swagger (solo en desarrollo o si se habilita)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(options =>
+    app.UseSwaggerUI(c =>
     {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "NubluSoft API v1");
-        options.RoutePrefix = "swagger";
-        options.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "NubluSoft Gateway API v1");
     });
 }
 
-// HTTPS Redirection (comentado para desarrollo local)
-// app.UseHttpsRedirection();
-
-// CORS - Debe ir antes de Authentication
+// CORS - DEBE ir antes de Authentication
 app.UseCors("NubluSoftPolicy");
 
-// Authentication & Authorization
+// WebSockets - DEBE ir antes de Authentication para el handshake
+app.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
+
+// Authentication y Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Validación de sesión en Redis (después de Authentication)
+// Validación de sesión en Redis (después de auth)
 app.UseJwtSessionValidation();
 
-// Health Check endpoint
-app.MapHealthChecks("/health");
+// WebSocket Proxy (después de auth, para /ws/*)
+app.UseWebSocketProxy();
 
-// Controllers (rutas locales como /api/auth)
-app.MapControllers();
-
-// Proxy a microservicios (debe ir al final)
+// Proxy HTTP a microservicios (después de WebSocket)
 app.UseProxyToMicroservices();
 
-// ============================================
-// 6. LOGGING DE INICIO
-// ============================================
+// Controllers locales (auth, health)
+app.MapControllers();
+
+// ==================== INICIO ====================
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var env = app.Environment.EnvironmentName;
-var urls = builder.Configuration["ASPNETCORE_URLS"] ?? "http://localhost:5000";
 
-logger.LogInformation("========================================");
-logger.LogInformation("NubluSoft API Gateway iniciando...");
-logger.LogInformation("Ambiente: {Environment}", env);
-logger.LogInformation("URLs: {Urls}", urls);
-logger.LogInformation("========================================");
+logger.LogInformation("==============================================");
+logger.LogInformation("  NubluSoft Gateway iniciando en puerto 5008");
+logger.LogInformation("==============================================");
 
-// ============================================
-// RUN
-// ============================================
+try
+{
+    // Verificar Redis
+    var redis = app.Services.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>();
+    var db = redis.GetDatabase();
+    db.Ping();
+    logger.LogInformation("[OK] Redis conectado: {Endpoint}", builder.Configuration["Redis:ConnectionString"]);
+
+    // Mostrar URLs de microservicios
+    logger.LogInformation("[OK] Core URL: {Url}", builder.Configuration["Services:Core"]);
+    logger.LogInformation("[OK] Storage URL: {Url}", builder.Configuration["Services:Storage"]);
+    logger.LogInformation("[OK] NavIndex URL: {Url}", builder.Configuration["Services:NavIndex"]);
+    logger.LogInformation("[OK] WebSocket Proxy habilitado en /ws/*");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "Error verificando conexiones al inicio");
+}
 
 app.Run();

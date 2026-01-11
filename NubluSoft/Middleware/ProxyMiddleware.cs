@@ -29,16 +29,14 @@ namespace NubluSoft.Middleware
     // NubluSoft_Core (Puerto 5001) - Todas las rutas de negocio
     { "/api/usuarios", "CoreService" },
     { "/api/carpetas", "CoreService" },
-    { "/api/archivos", "CoreService" },      // ← Incluye iniciar-upload, confirmar, download-url
+    { "/api/archivos", "CoreService" },
     { "/api/radicados", "CoreService" },
     { "/api/oficinas", "CoreService" },
     { "/api/trd", "CoreService" },
     { "/api/terceros", "CoreService" },
     { "/api/transferencias", "CoreService" },
     { "/api/datosestaticos", "CoreService" },
-    
-    // NubluSoft_Storage (Puerto 5002) - SOLO interno, NO expuesto al frontend
-    // { "/api/storage", "StorageService" },  // ← COMENTADO/ELIMINADO
+    { "/api/notificaciones", "CoreService" },    // ← AGREGAR ESTA LÍNEA
     
     // NubluSoft_NavIndex (Puerto 5003)
     { "/api/navegacion", "NavIndexService" }

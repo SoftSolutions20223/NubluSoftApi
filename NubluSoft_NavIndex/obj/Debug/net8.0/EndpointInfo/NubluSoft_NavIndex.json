@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "NubluSoft NavIndex API",
-    "description": "Microservicio de navegación y estructura documental",
+    "description": "Microservicio de navegación y estructura documental con WebSockets",
     "version": "v1"
   },
   "paths": {

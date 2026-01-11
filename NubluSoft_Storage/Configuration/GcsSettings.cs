@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using NubluSoft_Storage.Configuration;
-
-namespace NubluSoft_Storage.Configuration
+﻿namespace NubluSoft_Storage.Configuration
 {
     /// <summary>
     /// Configuración de Google Cloud Storage

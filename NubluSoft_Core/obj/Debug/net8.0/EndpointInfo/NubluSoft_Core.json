@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "NubluSoft Core API",
-    "description": "API de gestión documental - Microservicio Core",
+    "description": "Microservicio de lógica de negocio",
     "version": "v1"
   },
   "paths": {
@@ -1055,18 +1055,6 @@
       "get": {
         "tags": [
           "Health"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/health": {
-      "get": {
-        "tags": [
-          "NubluSoft_Core"
         ],
         "responses": {
           "200": {
@@ -4887,7 +4875,7 @@
     "securitySchemes": {
       "Bearer": {
         "type": "apiKey",
-        "description": "Ingrese el token JWT: Bearer {token}",
+        "description": "JWT Authorization header. Ejemplo: \"Bearer {token}\"",
         "name": "Authorization",
         "in": "header"
       }

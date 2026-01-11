@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NubluSoft_Storage")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4f48981e951682af165659c1325a96ee68a0ac2f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+708a86a4184c67b37597ecaab914338c4aeb5e07")]
 [assembly: System.Reflection.AssemblyProductAttribute("NubluSoft_Storage")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NubluSoft_Storage")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

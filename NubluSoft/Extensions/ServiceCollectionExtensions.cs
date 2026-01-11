@@ -28,6 +28,9 @@ namespace NubluSoft.Extensions
         /// <summary>
         /// Configura la autenticación JWT
         /// </summary>
+        /// <summary>
+        /// Configura la autenticación JWT con soporte para WebSockets
+        /// </summary>
         public static IServiceCollection AddJwtAuthentication(
             this IServiceCollection services,
             IConfiguration configuration)
@@ -44,7 +47,7 @@ namespace NubluSoft.Extensions
             })
             .AddJwtBearer(options =>
             {
-                options.RequireHttpsMetadata = false; // En producción cambiar a true
+                options.RequireHttpsMetadata = false;
                 options.SaveToken = true;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -55,12 +58,26 @@ namespace NubluSoft.Extensions
                     ValidateAudience = true,
                     ValidAudience = jwtSettings.Audience,
                     ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero // Sin tolerancia de tiempo
+                    ClockSkew = TimeSpan.Zero
                 };
 
-                // Eventos para logging/debugging
+                // Eventos para logging y soporte WebSocket
                 options.Events = new JwtBearerEvents
                 {
+                    // IMPORTANTE: Permitir token en query string para WebSockets
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        // Si es una ruta de WebSocket y tiene token en query string
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ws"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                     OnAuthenticationFailed = context =>
                     {
                         var logger = context.HttpContext.RequestServices
