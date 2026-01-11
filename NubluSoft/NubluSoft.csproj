@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <!-- Swagger/OpenAPI -->
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     
     <!-- PostgreSQL + Dapper -->
     <PackageReference Include="Npgsql" Version="10.0.1" />
@@ -22,7 +22,7 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
     
     <!-- HTTP Client para Proxy -->
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
     
     <!-- JSON -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

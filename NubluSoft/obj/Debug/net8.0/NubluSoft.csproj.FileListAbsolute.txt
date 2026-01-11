@@ -8,6 +8,14 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Nublu
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\NubluSoft.pdb
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Dapper.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.Abstractions.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Http.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Logging.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Logging.Abstractions.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.Extensions.Options.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.IdentityModel.Abstractions.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.IdentityModel.JsonWebTokens.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Microsoft.IdentityModel.Logging.dll
@@ -22,7 +30,9 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Stack
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Swashbuckle.AspNetCore.Swagger.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\System.Diagnostics.DiagnosticSource.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll
+C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\bin\Debug\net8.0\System.IO.Hashing.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\NubluSoft.csproj.AssemblyReference.cache
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\rpswa.dswa.cache.json
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\NubluSoft.GeneratedMSBuildEditorConfig.editorconfig

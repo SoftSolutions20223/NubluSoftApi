@@ -59,10 +59,6 @@
               "target": "Package",
               "version": "[8.0.22, )"
             },
-            "Microsoft.AspNetCore.SignalR": {
-              "target": "Package",
-              "version": "[1.2.9, )"
-            },
             "Newtonsoft.Json": {
               "target": "Package",
               "version": "[13.0.4, )"
@@ -77,7 +73,7 @@
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
-              "version": "[10.1.0, )"
+              "version": "[6.9.0, )"
             },
             "System.IO.Compression": {
               "target": "Package",

@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NubluSoft")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+708a86a4184c67b37597ecaab914338c4aeb5e07")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b0e257acea6bbf1b370421bf362baf87a7bdb28f")]
 [assembly: System.Reflection.AssemblyProductAttribute("NubluSoft")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NubluSoft")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
