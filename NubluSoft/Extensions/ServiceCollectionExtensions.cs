@@ -177,7 +177,7 @@ namespace NubluSoft.Extensions
             {
                 client.BaseAddress = new Uri(endpoints.Storage);
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
-                client.Timeout = TimeSpan.FromSeconds(60); // Mayor timeout para archivos
+                client.Timeout = TimeSpan.FromSeconds(60);
             });
 
             // HttpClient para NubluSoft_NavIndex
@@ -187,6 +187,16 @@ namespace NubluSoft.Extensions
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
                 client.Timeout = TimeSpan.FromSeconds(30);
             });
+
+            // ============ AGREGAR ESTO ============
+            // HttpClient para NubluSoft_Signature
+            services.AddHttpClient("SignatureService", client =>
+            {
+                client.BaseAddress = new Uri(endpoints.Signature);
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
+            // ======================================
 
             return services;
         }

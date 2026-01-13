@@ -26,7 +26,7 @@ namespace NubluSoft.Middleware
         // Mapeo de rutas a microservicios
         private static readonly Dictionary<string, string> RouteMapping = new()
 {
-    // NubluSoft_Core (Puerto 5001) - Todas las rutas de negocio
+    // NubluSoft_Core (Puerto 5001)
     { "/api/usuarios", "CoreService" },
     { "/api/carpetas", "CoreService" },
     { "/api/archivos", "CoreService" },
@@ -36,10 +36,16 @@ namespace NubluSoft.Middleware
     { "/api/terceros", "CoreService" },
     { "/api/transferencias", "CoreService" },
     { "/api/datosestaticos", "CoreService" },
-    { "/api/notificaciones", "CoreService" },    // ← AGREGAR ESTA LÍNEA
+    { "/api/notificaciones", "CoreService" },
     
     // NubluSoft_NavIndex (Puerto 5003)
-    { "/api/navegacion", "NavIndexService" }
+    { "/api/navegacion", "NavIndexService" },
+    
+    // NubluSoft_Signature (Puerto 5004) - AGREGAR ESTAS LÍNEAS
+    { "/api/solicitudes", "SignatureService" },
+    { "/api/firma", "SignatureService" },
+    { "/api/certificados", "SignatureService" },
+    { "/api/verificar", "SignatureService" }
 };
 
         public ProxyMiddleware(
