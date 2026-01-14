@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using NubluSoft_Signature.Extensions;
 using NubluSoft_Signature.Models.DTOs;
 using NubluSoft_Signature.Services;
@@ -22,6 +23,7 @@ namespace NubluSoft_Signature.Controllers
         private readonly ICertificadoService _certificadoService;
         private readonly IPdfSignatureService _pdfSignatureService;
         private readonly IStorageClientService _storageClientService;
+        private readonly IConfiguration _configuration;
 
         public FirmaController(
             IFirmaService firmaService,
@@ -30,6 +32,7 @@ namespace NubluSoft_Signature.Controllers
             ICertificadoService certificadoService,
             IPdfSignatureService pdfSignatureService,
             IStorageClientService storageClientService,
+            IConfiguration configuration,  // ← AGREGAR
             ILogger<FirmaController> logger)
         {
             _firmaService = firmaService;
@@ -38,6 +41,7 @@ namespace NubluSoft_Signature.Controllers
             _certificadoService = certificadoService;
             _pdfSignatureService = pdfSignatureService;
             _storageClientService = storageClientService;
+            _configuration = configuration;  // ← AGREGAR
             _logger = logger;
         }
 
@@ -181,9 +185,25 @@ namespace NubluSoft_Signature.Controllers
         /// </summary>
         private async Task<long?> ObtenerArchivoIdAsync(long solicitudId)
         {
-            // Este método debería obtener el ArchivoId de la solicitud
-            // Puedes agregarlo al ISolicitudFirmaService o hacer la consulta directa aquí
-            return null; // Placeholder - implementar según necesidad
+            try
+            {
+                using var connection = new Npgsql.NpgsqlConnection(
+                    _configuration.GetConnectionString("PostgreSQL"));
+                await connection.OpenAsync();
+
+                var archivoId = await Dapper.SqlMapper.QueryFirstOrDefaultAsync<long?>(connection, @"
+            SELECT ""Archivo""
+            FROM documentos.""Solicitudes_Firma""
+            WHERE ""Cod"" = @SolicitudId",
+                    new { SolicitudId = solicitudId });
+
+                return archivoId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo ArchivoId para solicitud {SolicitudId}", solicitudId);
+                return null;
+            }
         }
 
         /// <summary>
