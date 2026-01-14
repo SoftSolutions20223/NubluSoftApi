@@ -37,6 +37,11 @@ namespace NubluSoft.Middleware
     { "/api/transferencias", "CoreService" },
     { "/api/datosestaticos", "CoreService" },
     { "/api/notificaciones", "CoreService" },
+    { "/api/auditoria", "CoreService" },
+    { "/api/diasfestivos", "CoreService" },
+    { "/api/oficinas-trd", "CoreService" },
+    { "/api/prestamos", "CoreService" },
+    { "/api/entidades", "CoreService" },
     
     // NubluSoft_NavIndex (Puerto 5003)
     { "/api/navegacion", "NavIndexService" },
@@ -45,7 +50,8 @@ namespace NubluSoft.Middleware
     { "/api/solicitudes", "SignatureService" },
     { "/api/firma", "SignatureService" },
     { "/api/certificados", "SignatureService" },
-    { "/api/verificar", "SignatureService" }
+    { "/api/verificar", "SignatureService" },
+    { "/api/configuracion", "SignatureService" }
 };
 
         public ProxyMiddleware(

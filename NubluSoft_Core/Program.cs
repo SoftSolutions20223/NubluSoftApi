@@ -32,6 +32,11 @@ builder.Services.AddScoped<ITRDService, TRDService>();
 builder.Services.AddScoped<ITercerosService, TercerosService>();
 builder.Services.AddScoped<ITransferenciasService, TransferenciasService>();
 builder.Services.AddScoped<IDatosEstaticosService, DatosEstaticosService>();
+builder.Services.AddScoped<IAuditoriaService, AuditoriaService>();
+builder.Services.AddScoped<IDiasFestivosService, DiasFestivosService>();
+builder.Services.AddScoped<IOficinaTRDService, OficinaTRDService>();
+builder.Services.AddScoped<IPrestamosService, PrestamosService>();
+builder.Services.AddScoped<IEntidadesService, EntidadesService>();
 
 // ==================== NOTIFICACIONES ====================
 

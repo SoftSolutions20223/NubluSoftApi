@@ -26,7 +26,8 @@ builder.Services.AddScoped<IFirmaService, FirmaService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IVerificacionService, VerificacionService>();
 builder.Services.AddScoped<ICertificadoService, CertificadoService>();
-builder.Services.AddScoped<IPdfSignatureService, PdfSignatureService>();  // ← AGREGAR
+builder.Services.AddScoped<IPdfSignatureService, PdfSignatureService>();  
+builder.Services.AddScoped<IConfiguracionFirmaService, ConfiguracionFirmaService>();
 
 // Cliente HTTP para Storage
 builder.Services.AddHttpClient<IStorageClientService, StorageClientService>(client =>

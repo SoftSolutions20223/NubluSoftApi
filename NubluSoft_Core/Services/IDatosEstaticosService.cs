@@ -26,5 +26,7 @@ namespace NubluSoft_Core.Services
         Task<IEnumerable<Catalogo>> ObtenerRolesAsync();
         Task<IEnumerable<CatalogoString>> ObtenerTiposDocumentoIdentidadAsync();
         Task<IEnumerable<CatalogoString>> ObtenerTiposFirmaAsync();
+        Task<IEnumerable<Catalogo>> ObtenerSectoresAsync();
+        Task<IEnumerable<CatalogoString>> ObtenerTiposEntidadAsync();
     }
 }

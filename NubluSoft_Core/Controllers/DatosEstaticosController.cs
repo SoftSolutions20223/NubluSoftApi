@@ -192,6 +192,28 @@ namespace NubluSoft_Core.Controllers
             return Ok(result);
         }
 
+        // ==================== ENTIDADES ====================
+
+        /// <summary>
+        /// Obtiene los sectores económicos (para clasificación de entidades)
+        /// </summary>
+        [HttpGet("sectores")]
+        public async Task<IActionResult> GetSectores()
+        {
+            var result = await _service.ObtenerSectoresAsync();
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Obtiene los tipos de entidad (Pública, Privada, Mixta, etc.)
+        /// </summary>
+        [HttpGet("tipos-entidad")]
+        public async Task<IActionResult> GetTiposEntidad()
+        {
+            var result = await _service.ObtenerTiposEntidadAsync();
+            return Ok(result);
+        }
+
         // ==================== ENDPOINT COMBINADO ====================
 
         /// <summary>
@@ -202,16 +224,32 @@ namespace NubluSoft_Core.Controllers
         {
             var result = new
             {
+                // Carpetas/Archivos
                 TiposCarpetas = await _service.ObtenerTiposCarpetasAsync(),
                 EstadosCarpetas = await _service.ObtenerEstadosCarpetasAsync(),
                 TiposArchivos = await _service.ObtenerTiposArchivosAsync(),
                 TiposDocumentales = await _service.ObtenerTiposDocumentalesAsync(),
                 NivelesVisualizacion = await _service.ObtenerNivelesVisualizacionAsync(),
-                Roles = await _service.ObtenerRolesAsync(),
-                TiposDocumentoIdentidad = await _service.ObtenerTiposDocumentoIdentidadAsync(),
+                SoportesDocumento = await _service.ObtenerSoportesDocumentoAsync(),
+                FrecuenciasConsulta = await _service.ObtenerFrecuenciasConsultaAsync(),
+                OrigenesDocumentos = await _service.ObtenerOrigenesDocumentosAsync(),
+                DisposicionesFinales = await _service.ObtenerDisposicionesFinalesAsync(),
+
+                // Ventanilla Única
                 TiposSolicitud = await _service.ObtenerTiposSolicitudAsync(),
                 EstadosRadicado = await _service.ObtenerEstadosRadicadoAsync(),
-                TiposComunicacion = await _service.ObtenerTiposComunicacionAsync()
+                TiposComunicacion = await _service.ObtenerTiposComunicacionAsync(),
+                MediosRecepcion = await _service.ObtenerMediosRecepcionAsync(),
+                PrioridadesRadicado = await _service.ObtenerPrioridadesRadicadoAsync(),
+
+                // Generales
+                Roles = await _service.ObtenerRolesAsync(),
+                TiposDocumentoIdentidad = await _service.ObtenerTiposDocumentoIdentidadAsync(),
+                TiposFirma = await _service.ObtenerTiposFirmaAsync(),
+
+                // Entidades 
+                Sectores = await _service.ObtenerSectoresAsync(),
+                TiposEntidad = await _service.ObtenerTiposEntidadAsync()
             };
 
             return Ok(result);

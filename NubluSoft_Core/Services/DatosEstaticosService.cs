@@ -203,6 +203,29 @@ namespace NubluSoft_Core.Services
             return await EjecutarConsultaAsync<CatalogoString>(sql, "Tipos_Firma");
         }
 
+        // ==================== ENTIDADES ====================
+
+        public async Task<IEnumerable<Catalogo>> ObtenerSectoresAsync()
+        {
+            const string sql = @"
+                SELECT ""Cod"", ""Nombre"", ""Estado"" 
+                FROM documentos.""Sectores"" 
+                WHERE ""Estado"" = true 
+                ORDER BY ""Nombre""";
+
+            return await EjecutarConsultaAsync<Catalogo>(sql, "Sectores");
+        }
+
+        public async Task<IEnumerable<CatalogoString>> ObtenerTiposEntidadAsync()
+        {
+            const string sql = @"
+                SELECT ""Cod"", ""Nombre"", true AS ""Estado"" 
+                FROM documentos.""Tipos_Entidad"" 
+                ORDER BY ""Nombre""";
+
+            return await EjecutarConsultaAsync<CatalogoString>(sql, "Tipos_Entidad");
+        }
+
         // ==================== HELPER ====================
 
         private async Task<IEnumerable<T>> EjecutarConsultaAsync<T>(string sql, string nombreTabla)
