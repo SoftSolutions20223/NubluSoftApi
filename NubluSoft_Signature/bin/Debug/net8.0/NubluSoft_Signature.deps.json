@@ -16,7 +16,7 @@
           "Newtonsoft.Json": "13.0.4",
           "Npgsql": "10.0.1",
           "Swashbuckle.AspNetCore": "6.9.0",
-          "Syncfusion.Pdf.Net.Core": "32.1.22",
+          "Syncfusion.Pdf.Net.Core": "32.1.23",
           "System.IdentityModel.Tokens.Jwt": "8.15.0"
         },
         "runtime": {
@@ -330,32 +330,32 @@
           }
         }
       },
-      "Syncfusion.Compression.Net.Core/32.1.22": {
+      "Syncfusion.Compression.Net.Core/32.1.23": {
         "runtime": {
           "lib/net8.0/Syncfusion.Compression.Portable.dll": {
-            "assemblyVersion": "32.1.22.0",
-            "fileVersion": "32.1.22.0"
+            "assemblyVersion": "32.1.23.0",
+            "fileVersion": "32.1.23.0"
           }
         }
       },
-      "Syncfusion.Licensing/32.1.22": {
+      "Syncfusion.Licensing/32.1.23": {
         "runtime": {
           "lib/net8.0/Syncfusion.Licensing.dll": {
-            "assemblyVersion": "32.1.22.0",
-            "fileVersion": "32.1.22.0"
+            "assemblyVersion": "32.1.23.0",
+            "fileVersion": "32.1.23.0"
           }
         }
       },
-      "Syncfusion.Pdf.Net.Core/32.1.22": {
+      "Syncfusion.Pdf.Net.Core/32.1.23": {
         "dependencies": {
-          "Syncfusion.Compression.Net.Core": "32.1.22",
-          "Syncfusion.Licensing": "32.1.22",
+          "Syncfusion.Compression.Net.Core": "32.1.23",
+          "Syncfusion.Licensing": "32.1.23",
           "System.Text.Encoding.CodePages": "4.4.0"
         },
         "runtime": {
           "lib/net8.0/Syncfusion.Pdf.Portable.dll": {
-            "assemblyVersion": "32.1.22.0",
-            "fileVersion": "32.1.22.0"
+            "assemblyVersion": "32.1.23.0",
+            "fileVersion": "32.1.23.0"
           }
         }
       },
@@ -640,26 +640,26 @@
       "path": "swashbuckle.aspnetcore.swaggerui/6.9.0",
       "hashPath": "swashbuckle.aspnetcore.swaggerui.6.9.0.nupkg.sha512"
     },
-    "Syncfusion.Compression.Net.Core/32.1.22": {
+    "Syncfusion.Compression.Net.Core/32.1.23": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-y4kEhO5QHa99HUb9wOUCrgxZHcRVMFi5n5MPi1segpGe0wqTtIvg/HDdaLz+l3mL6s2ji/zZq9qTiEyuJi7JAQ==",
-      "path": "syncfusion.compression.net.core/32.1.22",
-      "hashPath": "syncfusion.compression.net.core.32.1.22.nupkg.sha512"
+      "sha512": "sha512-V6cUZ+zfHJTAo7va7UyqO14LnkIn6wSmuO90e6I5iN48P2B2IIAOf+Ncr+rt3QW62IF4GFCSyaAvElYmukAKVQ==",
+      "path": "syncfusion.compression.net.core/32.1.23",
+      "hashPath": "syncfusion.compression.net.core.32.1.23.nupkg.sha512"
     },
-    "Syncfusion.Licensing/32.1.22": {
+    "Syncfusion.Licensing/32.1.23": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-7dxYJ4cDc8WAD80LH8/ZIE+Og6ICVuh2ebR1UOw4ZxhKV2KBBj4LWimRPpVdNAevaxufluqFLv8YUzWlr86vYw==",
-      "path": "syncfusion.licensing/32.1.22",
-      "hashPath": "syncfusion.licensing.32.1.22.nupkg.sha512"
+      "sha512": "sha512-7XwLsno7+F/XKsZdI8ooUnpiib/5EQdPdvw/ChgQjJeedd95Aot7R8Gv3wTXlR/WDi/HexV3fGoClnY4/9fIfw==",
+      "path": "syncfusion.licensing/32.1.23",
+      "hashPath": "syncfusion.licensing.32.1.23.nupkg.sha512"
     },
-    "Syncfusion.Pdf.Net.Core/32.1.22": {
+    "Syncfusion.Pdf.Net.Core/32.1.23": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-PIAvg0OJOvsfLRletYU2eNnrV8vZYy+dJzOxo782UTnl32yrqZoEnXaF+im9TAUdRY970E5t9/M/J/ki7PjQ/A==",
-      "path": "syncfusion.pdf.net.core/32.1.22",
-      "hashPath": "syncfusion.pdf.net.core.32.1.22.nupkg.sha512"
+      "sha512": "sha512-zqcq17CgZV9mTaErgQeaXjdZuPUNmTa6PqMShZBnR6xW8zH2Nu0tHRyMhgHot+6rCW18bqz1+rlAuLzSh//ekg==",
+      "path": "syncfusion.pdf.net.core/32.1.23",
+      "hashPath": "syncfusion.pdf.net.core.32.1.23.nupkg.sha512"
     },
     "System.Diagnostics.DiagnosticSource/9.0.11": {
       "type": "package",

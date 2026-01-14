@@ -36,5 +36,15 @@ namespace NubluSoft_Signature.Services
         /// Obtiene el hash actual del documento
         /// </summary>
         Task<string?> ObtenerHashDocumentoAsync(long archivoId);
+
+        /// <summary>
+        /// Registra una firma avanzada con certificado
+        /// </summary>
+        Task<ResultadoFirmaResponse> RegistrarFirmaAvanzadaAsync(
+            long firmanteId,
+            long certificadoId,
+            string hashFinal,
+            string ip,
+            string userAgent);
     }
 }

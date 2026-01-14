@@ -4,6 +4,7 @@ using NubluSoft_Signature.Extensions;
 using NubluSoft_Signature.Models.DTOs;
 using NubluSoft_Signature.Services;
 
+
 namespace NubluSoft_Signature.Controllers
 {
     /// <summary>
@@ -18,17 +19,171 @@ namespace NubluSoft_Signature.Controllers
         private readonly IOtpService _otpService;
         private readonly IFirmaService _firmaService;
         private readonly ILogger<FirmaController> _logger;
+        private readonly ICertificadoService _certificadoService;
+        private readonly IPdfSignatureService _pdfSignatureService;
+        private readonly IStorageClientService _storageClientService;
 
         public FirmaController(
-            ISolicitudFirmaService solicitudService,
-            IOtpService otpService,
             IFirmaService firmaService,
+            IOtpService otpService,
+            ISolicitudFirmaService solicitudService,
+            ICertificadoService certificadoService,
+            IPdfSignatureService pdfSignatureService,
+            IStorageClientService storageClientService,
             ILogger<FirmaController> logger)
         {
-            _solicitudService = solicitudService;
-            _otpService = otpService;
             _firmaService = firmaService;
+            _otpService = otpService;
+            _solicitudService = solicitudService;
+            _certificadoService = certificadoService;
+            _pdfSignatureService = pdfSignatureService;
+            _storageClientService = storageClientService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Firma un documento con certificado digital (Firma Avanzada)
+        /// </summary>
+        [HttpPost("{solicitudId}/certificado")]
+        public async Task<IActionResult> FirmarConCertificado(
+            long solicitudId,
+            [FromBody] FirmarConCertificadoRequest request)
+        {
+            var usuarioId = User.GetUserId();
+            var entidadId = User.GetEntidadId();
+
+            if (!usuarioId.HasValue || !entidadId.HasValue)
+                return Unauthorized(new { mensaje = "Usuario no autenticado" });
+
+            try
+            {
+                // 1. Verificar permisos
+                var puedeFirmar = await _solicitudService.VerificarPuedeFirmarAsync(
+                    entidadId.Value, usuarioId.Value, solicitudId);
+
+                if (!puedeFirmar.PuedeFirmar)
+                {
+                    return BadRequest(new { mensaje = puedeFirmar.Mensaje });
+                }
+
+                // 2. Obtener certificado desencriptado
+                var certificado = await _certificadoService.ObtenerCertificadoParaFirmarAsync(
+                    entidadId.Value, usuarioId.Value, request.Contrasena);
+
+                if (certificado == null)
+                {
+                    return BadRequest(new { mensaje = "Contraseña incorrecta o certificado no disponible" });
+                }
+
+                // 3. Obtener información del documento
+                var info = await _firmaService.ObtenerInfoDocumentoAsync(
+                    entidadId.Value, usuarioId.Value, solicitudId);
+
+                if (info == null)
+                {
+                    return NotFound(new { mensaje = "Solicitud no encontrada" });
+                }
+
+                // 4. Obtener información del archivo para descargar
+                var archivoInfo = await ObtenerArchivoIdAsync(solicitudId);
+                if (archivoInfo == null)
+                {
+                    return BadRequest(new { mensaje = "No se encontró el archivo asociado" });
+                }
+
+                // 5. Descargar PDF desde Storage
+                var storageInfo = await _storageClientService.ObtenerInfoArchivoAsync(archivoInfo.Value);
+                if (storageInfo?.Ruta == null)
+                {
+                    return BadRequest(new { mensaje = "No se pudo obtener información del archivo" });
+                }
+
+                var pdfOriginal = await _storageClientService.DescargarArchivoAsync(storageInfo.Ruta);
+                if (pdfOriginal == null)
+                {
+                    return BadRequest(new { mensaje = "No se pudo descargar el documento" });
+                }
+
+                // 6. Firmar PDF
+                var nombreFirmante = User.FindFirst("NombreCompleto")?.Value ?? "Usuario";
+                var resultadoFirma = await _pdfSignatureService.FirmarPdfAsync(
+                    pdfOriginal,
+                    certificado,
+                    nombreFirmante,
+                    info.Asunto,
+                    "Colombia");
+
+                if (!resultadoFirma.Exito || resultadoFirma.PdfFirmado == null)
+                {
+                    return BadRequest(new { mensaje = resultadoFirma.Error ?? "Error al firmar el PDF" });
+                }
+
+                // 7. Subir PDF firmado
+                var uploadResult = await _storageClientService.SubirVersionAsync(
+                    archivoInfo.Value,
+                    resultadoFirma.PdfFirmado,
+                    "application/pdf");
+
+                if (uploadResult == null || !uploadResult.Success)
+                {
+                    return BadRequest(new { mensaje = "Error al guardar el documento firmado" });
+                }
+
+                // 8. Obtener ID del certificado
+                var certInfo = await _certificadoService.ObtenerCertificadoActivoAsync(
+                    entidadId.Value, usuarioId.Value);
+
+                // 9. Registrar firma en BD
+                var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var userAgent = Request.Headers.UserAgent.ToString();
+
+                var resultado = await _firmaService.RegistrarFirmaAvanzadaAsync(
+                    info.FirmanteId,
+                    certInfo?.Cod ?? 0,
+                    resultadoFirma.HashFinal ?? "",
+                    ip,
+                    userAgent);
+
+                // 10. Registrar uso del certificado
+                if (certInfo != null)
+                {
+                    await _certificadoService.RegistrarUsoAsync(certInfo.Cod);
+                }
+
+                if (!resultado.Exito)
+                {
+                    return BadRequest(resultado);
+                }
+
+                return Ok(new ResultadoFirmaAvanzadaResponse
+                {
+                    Exito = true,
+                    Mensaje = resultado.Mensaje,
+                    TipoFirma = "AVANZADA_CERTIFICADO",
+                    SolicitudCompletada = resultado.SolicitudCompletada,
+                    HashFinal = resultadoFirma.HashFinal,
+                    CodigoVerificacion = resultado.CodigoVerificacion
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en firma con certificado");
+                return StatusCode(500, new { mensaje = "Error interno del servidor" });
+            }
+            finally
+            {
+                // Liberar recursos del certificado
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el ID del archivo asociado a una solicitud
+        /// </summary>
+        private async Task<long?> ObtenerArchivoIdAsync(long solicitudId)
+        {
+            // Este método debería obtener el ArchivoId de la solicitud
+            // Puedes agregarlo al ISolicitudFirmaService o hacer la consulta directa aquí
+            return null; // Placeholder - implementar según necesidad
         }
 
         /// <summary>

@@ -85,7 +85,7 @@
             },
             "Syncfusion.Pdf.Net.Core": {
               "target": "Package",
-              "version": "[32.1.22, )"
+              "version": "[32.1.23, )"
             },
             "System.IdentityModel.Tokens.Jwt": {
               "target": "Package",

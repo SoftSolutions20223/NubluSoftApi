@@ -230,6 +230,92 @@ namespace NubluSoft_Signature.Services
             }
         }
 
+
+
+        public async Task<ResultadoFirmaResponse> RegistrarFirmaAvanzadaAsync(
+            long firmanteId,
+            long certificadoId,
+            string hashFinal,
+            string ip,
+            string userAgent)
+        {
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                // Obtener información del firmante y solicitud
+                var info = await connection.QueryFirstOrDefaultAsync<InfoFirmaDto>(@"
+            SELECT 
+                fs.""Solicitud"",
+                s.""CodigoVerificacion""
+            FROM documentos.""Firmantes_Solicitud"" fs
+            INNER JOIN documentos.""Solicitudes_Firma"" s ON fs.""Solicitud"" = s.""Cod""
+            WHERE fs.""Cod"" = @FirmanteId",
+                    new { FirmanteId = firmanteId });
+
+                if (info == null)
+                {
+                    return new ResultadoFirmaResponse
+                    {
+                        Exito = false,
+                        Mensaje = "Firmante no encontrado"
+                    };
+                }
+
+                // Ejecutar función de registro de firma avanzada
+                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoRegistroFirmaDto>(@"
+            SELECT * FROM documentos.""F_RegistrarFirma""(
+                @FirmanteId, 
+                'AVANZADA_CERTIFICADO',
+                @HashFinal,
+                @IP,
+                @UserAgent,
+                @CertificadoId,
+                NULL
+            )",
+                    new
+                    {
+                        FirmanteId = firmanteId,
+                        HashFinal = hashFinal,
+                        IP = ip,
+                        UserAgent = userAgent,
+                        CertificadoId = certificadoId
+                    });
+
+                if (resultado == null || !resultado.Exito)
+                {
+                    return new ResultadoFirmaResponse
+                    {
+                        Exito = false,
+                        Mensaje = resultado?.Mensaje ?? "Error al registrar la firma"
+                    };
+                }
+
+                _logger.LogInformation(
+                    "Firma avanzada registrada para firmante {FirmanteId}, certificado: {CertificadoId}",
+                    firmanteId, certificadoId);
+
+                return new ResultadoFirmaResponse
+                {
+                    Exito = true,
+                    Mensaje = resultado.Mensaje ?? "Firma registrada",
+                    SolicitudCompletada = resultado.SolicitudCompletada,
+                    SiguienteFirmanteId = resultado.SiguienteFirmante,
+                    CodigoVerificacion = resultado.SolicitudCompletada ? info.CodigoVerificacion : null
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registrando firma avanzada para firmante {FirmanteId}", firmanteId);
+                return new ResultadoFirmaResponse
+                {
+                    Exito = false,
+                    Mensaje = "Error al procesar la firma"
+                };
+            }
+        }
+
         // ==================== DTOs internos para mapeo ====================
 
         private class InfoFirmaDto

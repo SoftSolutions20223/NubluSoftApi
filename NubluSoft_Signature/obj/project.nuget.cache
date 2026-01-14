@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "CwZT6yO27Rc=",
+  "dgSpecHash": "uNtRdCQIUpM=",
   "success": true,
   "projectFilePath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft_Signature\\NubluSoft_Signature.csproj",
   "expectedPackageFiles": [
@@ -37,9 +37,9 @@
     "C:\\Users\\Cristian\\.nuget\\packages\\swashbuckle.aspnetcore.swagger\\6.9.0\\swashbuckle.aspnetcore.swagger.6.9.0.nupkg.sha512",
     "C:\\Users\\Cristian\\.nuget\\packages\\swashbuckle.aspnetcore.swaggergen\\6.9.0\\swashbuckle.aspnetcore.swaggergen.6.9.0.nupkg.sha512",
     "C:\\Users\\Cristian\\.nuget\\packages\\swashbuckle.aspnetcore.swaggerui\\6.9.0\\swashbuckle.aspnetcore.swaggerui.6.9.0.nupkg.sha512",
-    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.compression.net.core\\32.1.22\\syncfusion.compression.net.core.32.1.22.nupkg.sha512",
-    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.licensing\\32.1.22\\syncfusion.licensing.32.1.22.nupkg.sha512",
-    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.pdf.net.core\\32.1.22\\syncfusion.pdf.net.core.32.1.22.nupkg.sha512",
+    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.compression.net.core\\32.1.23\\syncfusion.compression.net.core.32.1.23.nupkg.sha512",
+    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.licensing\\32.1.23\\syncfusion.licensing.32.1.23.nupkg.sha512",
+    "C:\\Users\\Cristian\\.nuget\\packages\\syncfusion.pdf.net.core\\32.1.23\\syncfusion.pdf.net.core.32.1.23.nupkg.sha512",
     "C:\\Users\\Cristian\\.nuget\\packages\\system.diagnostics.diagnosticsource\\9.0.11\\system.diagnostics.diagnosticsource.9.0.11.nupkg.sha512",
     "C:\\Users\\Cristian\\.nuget\\packages\\system.formats.asn1\\8.0.1\\system.formats.asn1.8.0.1.nupkg.sha512",
     "C:\\Users\\Cristian\\.nuget\\packages\\system.identitymodel.tokens.jwt\\8.15.0\\system.identitymodel.tokens.jwt.8.15.0.nupkg.sha512",

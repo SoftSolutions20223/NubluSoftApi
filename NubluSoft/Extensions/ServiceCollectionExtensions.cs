@@ -188,7 +188,7 @@ namespace NubluSoft.Extensions
                 client.Timeout = TimeSpan.FromSeconds(30);
             });
 
-            // ============ AGREGAR ESTO ============
+
             // HttpClient para NubluSoft_Signature
             services.AddHttpClient("SignatureService", client =>
             {

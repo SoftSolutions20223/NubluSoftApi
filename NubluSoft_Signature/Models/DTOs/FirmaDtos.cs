@@ -106,4 +106,19 @@ namespace NubluSoft_Signature.Models.DTOs
         public bool EsMiTurno { get; set; }
         public string? UrlDescarga { get; set; }
     }
+
+    // ==================== AGREGAR A FirmaDtos.cs ====================
+
+    /// <summary>
+    /// Resultado de firma avanzada
+    /// </summary>
+    public class ResultadoFirmaAvanzadaResponse
+    {
+        public bool Exito { get; set; }
+        public string Mensaje { get; set; } = string.Empty;
+        public string? TipoFirma { get; set; }
+        public bool SolicitudCompletada { get; set; }
+        public string? HashFinal { get; set; }
+        public string? CodigoVerificacion { get; set; }
+    }
 }

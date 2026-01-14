@@ -1,10 +1,10 @@
-using NubluSoft_Signature.Configuration;
+﻿using NubluSoft_Signature.Configuration;
 using NubluSoft_Signature.Extensions;
 using NubluSoft_Signature.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ==================== CONFIGURACI�N ====================
+// ==================== CONFIGURACIÓN ====================
 
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
@@ -25,6 +25,17 @@ builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IFirmaService, FirmaService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IVerificacionService, VerificacionService>();
+builder.Services.AddScoped<ICertificadoService, CertificadoService>();
+builder.Services.AddScoped<IPdfSignatureService, PdfSignatureService>();  // ← AGREGAR
+
+// Cliente HTTP para Storage
+builder.Services.AddHttpClient<IStorageClientService, StorageClientService>(client =>
+{
+    var storageUrl = builder.Configuration["Services:Storage"] ?? "http://localhost:5002";
+    client.BaseAddress = new Uri(storageUrl);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 
 
 // JWT y CORS
@@ -45,7 +56,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "NubluSoft Signature API",
         Version = "v1",
-        Description = "Microservicio de Firma Electr�nica - NubluSoft"
+        Description = "Microservicio de Firma Electrónica - NubluSoft"
     });
 
     // Configurar JWT en Swagger
