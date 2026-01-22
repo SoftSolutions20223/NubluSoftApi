@@ -1,0 +1,40 @@
+# Credenciales - NUNCA subir al repositorio
+**/gcs-credentials.json
+**/credentials.json
+**/*.p12
+**/*.pem
+**/serviceAccountKey.json
+
+# Variables de entorno
+.env
+.env.*
+appsettings.Development.json
+appsettings.Local.json
+
+# Archivos de Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+
+# Build outputs
+bin/
+obj/
+out/
+
+# NuGet
+packages/
+*.nupkg
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
