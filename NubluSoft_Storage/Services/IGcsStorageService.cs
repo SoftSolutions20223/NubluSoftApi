@@ -42,9 +42,11 @@ namespace NubluSoft_Storage.Services
             string? downloadFileName = null);
 
         /// <summary>
-        /// Genera una URL firmada para upload directo
+        /// Genera una URL firmada para upload directo.
+        /// Retorna la URL firmada y el Content-Type normalizado que fue usado para la firma.
+        /// El cliente DEBE usar exactamente el ContentType retornado.
         /// </summary>
-        string GenerateSignedUploadUrl(
+        SignedUploadUrlResult GenerateSignedUploadUrl(
             string objectName,
             string contentType,
             TimeSpan? expiration = null);
@@ -89,6 +91,23 @@ namespace NubluSoft_Storage.Services
         /// Obtiene el nombre del bucket configurado
         /// </summary>
         string BucketName { get; }
+    }
+
+    /// <summary>
+    /// Resultado de generación de URL firmada para upload
+    /// </summary>
+    public class SignedUploadUrlResult
+    {
+        /// <summary>
+        /// URL firmada para subir el archivo directamente a GCS
+        /// </summary>
+        public string SignedUrl { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Content-Type EXACTO que fue usado para firmar la URL.
+        /// El cliente DEBE enviar este valor exacto en el header Content-Type.
+        /// </summary>
+        public string SignedContentType { get; set; } = string.Empty;
     }
 
     /// <summary>

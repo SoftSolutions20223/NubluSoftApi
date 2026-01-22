@@ -56,6 +56,12 @@
         public List<CarpetaArbol> Hijos { get; set; } = new();
         public int CantidadArchivos { get; set; }
         public int CantidadSubcarpetas { get; set; }
+
+        // Estadísticas (solo para carpetas raíz/Series)
+        public int? ExpedientesActivos { get; set; }
+        public int? DocumentosTotales { get; set; }
+        public int? UsuariosConAcceso { get; set; }
+        public DateTime? UltimaModificacionEstadistica { get; set; }
     }
 
     /// <summary>

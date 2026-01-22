@@ -68,6 +68,23 @@ namespace NubluSoft_Core.Controllers
         }
 
         /// <summary>
+        /// Obtiene estadísticas de una carpeta raíz (expedientes activos, documentos, usuarios con acceso, última modificación)
+        /// </summary>
+        [HttpGet("{id}/estadisticas")]
+        public async Task<IActionResult> GetEstadisticas(long id)
+        {
+            var entidadId = User.GetEntidadId();
+            if (entidadId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar la entidad del usuario" });
+
+            var estadisticas = await _service.ObtenerEstadisticasAsync(id, entidadId);
+            if (estadisticas == null)
+                return NotFound(new { Message = "Carpeta no encontrada" });
+
+            return Ok(estadisticas);
+        }
+
+        /// <summary>
         /// Obtiene el árbol de Series y Subseries
         /// </summary>
         [HttpGet("arbol")]

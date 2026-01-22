@@ -193,25 +193,78 @@ namespace NubluSoft_Core.Services
 
         public async Task<IEnumerable<CarpetaArbol>> ObtenerArbolAsync(long entidadId, long? oficina = null)
         {
-            // Obtener Series y Subseries (TipoCarpeta 1 y 2) como raíces del árbol
+            // Obtener Series y Subseries (TipoCarpeta 1 y 2) con estadísticas para Series
             const string sql = @"
-                SELECT 
+                SELECT
                     c.""Cod"", c.""Nombre"", c.""Descripcion"", c.""TipoCarpeta"", c.""Estado"",
-                    c.""CarpetaPadre"", c.""SerieRaiz"", c.""TRD"",
+                    c.""CarpetaPadre"", c.""SerieRaiz"", c.""TRD"", c.""FechaModificacion"",
                     tc.""Nombre"" AS ""NombreTipoCarpeta"",
                     t.""Codigo"" AS ""CodigoTRD"",
-                    (SELECT COUNT(*) FROM documentos.""Carpetas"" h WHERE h.""CarpetaPadre"" = c.""Cod"" AND h.""Estado"" = true) AS ""CantidadSubcarpetas""
+                    (SELECT COUNT(*) FROM documentos.""Carpetas"" h WHERE h.""CarpetaPadre"" = c.""Cod"" AND h.""Estado"" = true) AS ""CantidadSubcarpetas"",
+
+                    -- Estadísticas para carpetas raíz: Series (TipoCarpeta = 1) y Genéricas raíz (TipoCarpeta = 4 sin padre)
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""ExpedientesActivos"" END AS ""ExpedientesActivos"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""DocumentosTotales"" END AS ""DocumentosTotales"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""UsuariosConAcceso"" END AS ""UsuariosConAcceso"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""UltimaModificacion"" END AS ""UltimaModificacionEstadistica""
                 FROM documentos.""Carpetas"" c
                 LEFT JOIN documentos.""Tipos_Carpetas"" tc ON c.""TipoCarpeta"" = tc.""Cod"" AND tc.""Estado"" = true
                 LEFT JOIN documentos.""Tablas_Retencion_Documental"" t ON c.""TRD"" = t.""Cod""
-                WHERE c.""Estado"" = true AND c.""TipoCarpeta"" IN (1, 2)
+                LEFT JOIN LATERAL (
+                    SELECT
+                        -- Expedientes activos
+                        (SELECT COUNT(*)
+                         FROM documentos.""Carpetas"" sub
+                         WHERE (sub.""SerieRaiz"" = c.""Cod"" OR sub.""CarpetaPadre"" = c.""Cod"")
+                           AND sub.""TipoCarpeta"" = 3
+                           AND sub.""EstadoCarpeta"" = 1
+                           AND sub.""Estado"" = true) AS ""ExpedientesActivos"",
+
+                        -- Documentos totales
+                        (SELECT COUNT(*)
+                         FROM documentos.""Archivos"" a
+                         INNER JOIN documentos.""Carpetas"" ca ON a.""Carpeta"" = ca.""Cod""
+                         WHERE (ca.""SerieRaiz"" = c.""Cod"" OR ca.""CarpetaPadre"" = c.""Cod"" OR ca.""Cod"" = c.""Cod"")
+                           AND a.""Estado"" = true
+                           AND ca.""Estado"" = true) AS ""DocumentosTotales"",
+
+                        -- Usuarios con acceso
+                        (SELECT COUNT(DISTINCT ru.""Usuario"")
+                         FROM documentos.""Roles_Usuarios"" ru
+                         INNER JOIN documentos.""Oficinas_TRD"" ot ON ru.""Oficina"" = ot.""Oficina""
+                         WHERE (c.""TRD"" IS NOT NULL AND ot.""TRD"" = c.""TRD"" OR c.""TRD"" IS NULL)
+                           AND ot.""Estado"" = true
+                           AND ot.""Entidad"" = @EntidadId
+                           AND ru.""Estado"" = true) AS ""UsuariosConAcceso"",
+
+                        -- Última modificación
+                        GREATEST(
+                            c.""FechaModificacion"",
+                            (SELECT MAX(sub.""FechaModificacion"")
+                             FROM documentos.""Carpetas"" sub
+                             WHERE (sub.""SerieRaiz"" = c.""Cod"" OR sub.""CarpetaPadre"" = c.""Cod"")
+                               AND sub.""Estado"" = true),
+                            (SELECT MAX(a.""FechaModificacion"")
+                             FROM documentos.""Archivos"" a
+                             INNER JOIN documentos.""Carpetas"" ca ON a.""Carpeta"" = ca.""Cod""
+                             WHERE (ca.""SerieRaiz"" = c.""Cod"" OR ca.""CarpetaPadre"" = c.""Cod"" OR ca.""Cod"" = c.""Cod"")
+                               AND a.""Estado"" = true AND ca.""Estado"" = true)
+                        ) AS ""UltimaModificacion""
+                ) stats ON c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                WHERE c.""Estado"" = true
+                  AND (c.""TipoCarpeta"" IN (1, 2) OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL))
+                  AND c.""Entidad"" = @EntidadId
                 ORDER BY c.""TipoCarpeta"", t.""Codigo"", c.""Nombre""";
 
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
-                var carpetas = await connection.QueryAsync<CarpetaArbol>(sql);
+                var carpetas = await connection.QueryAsync<CarpetaArbol>(sql, new { EntidadId = entidadId });
                 return ConstruirArbol(carpetas.ToList());
             }
             catch (Exception ex)
@@ -471,6 +524,71 @@ namespace NubluSoft_Core.Services
             {
                 _logger.LogError(ex, "Error reabriendo expediente {CarpetaId}", carpetaId);
                 return (false, "Error al reabrir el expediente: " + ex.Message);
+            }
+        }
+
+        // ==================== ESTADÍSTICAS ====================
+
+        public async Task<CarpetaEstadisticasDto?> ObtenerEstadisticasAsync(long carpetaId, long entidadId)
+        {
+            const string sql = @"
+                WITH RECURSIVE subcarpetas AS (
+                    -- Carpeta raíz
+                    SELECT ""Cod"", ""TipoCarpeta"", ""EstadoCarpeta"", ""TRD"", ""FechaModificacion""
+                    FROM documentos.""Carpetas""
+                    WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true AND ""Entidad"" = @EntidadId
+
+                    UNION ALL
+
+                    -- Subcarpetas recursivas
+                    SELECT c.""Cod"", c.""TipoCarpeta"", c.""EstadoCarpeta"", c.""TRD"", c.""FechaModificacion""
+                    FROM documentos.""Carpetas"" c
+                    INNER JOIN subcarpetas s ON c.""CarpetaPadre"" = s.""Cod""
+                    WHERE c.""Estado"" = true
+                )
+                SELECT
+                    @CarpetaId AS ""CarpetaCod"",
+
+                    -- Expedientes activos (TipoCarpeta = 3, EstadoCarpeta = 1 Abierto)
+                    (SELECT COUNT(*)
+                     FROM subcarpetas
+                     WHERE ""TipoCarpeta"" = 3 AND ""EstadoCarpeta"" = 1) AS ""ExpedientesActivos"",
+
+                    -- Documentos totales en todas las subcarpetas
+                    (SELECT COUNT(*)
+                     FROM documentos.""Archivos"" a
+                     WHERE a.""Carpeta"" IN (SELECT ""Cod"" FROM subcarpetas)
+                       AND a.""Estado"" = true) AS ""DocumentosTotales"",
+
+                    -- Usuarios con acceso a través de oficinas asignadas a la TRD
+                    (SELECT COUNT(DISTINCT ru.""Usuario"")
+                     FROM documentos.""Roles_Usuarios"" ru
+                     INNER JOIN documentos.""Oficinas_TRD"" ot ON ru.""Oficina"" = ot.""Oficina""
+                     WHERE ot.""TRD"" = (SELECT ""TRD"" FROM documentos.""Carpetas"" WHERE ""Cod"" = @CarpetaId)
+                       AND ot.""Estado"" = true
+                       AND ot.""Entidad"" = @EntidadId
+                       AND ru.""Estado"" = true) AS ""UsuariosConAcceso"",
+
+                    -- Última modificación (de carpetas o archivos)
+                    GREATEST(
+                        (SELECT MAX(""FechaModificacion"") FROM subcarpetas WHERE ""FechaModificacion"" IS NOT NULL),
+                        (SELECT MAX(a.""FechaModificacion"")
+                         FROM documentos.""Archivos"" a
+                         WHERE a.""Carpeta"" IN (SELECT ""Cod"" FROM subcarpetas)
+                           AND a.""Estado"" = true)
+                    ) AS ""UltimaModificacion""";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+                return await connection.QueryFirstOrDefaultAsync<CarpetaEstadisticasDto>(sql,
+                    new { CarpetaId = carpetaId, EntidadId = entidadId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo estadísticas de carpeta {CarpetaId}", carpetaId);
+                return null;
             }
         }
 

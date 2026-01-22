@@ -24,22 +24,28 @@ namespace NubluSoft_NavIndex.Services
             try
             {
                 _logger.LogInformation(
-                    "Procesando cambio: {TipoCambio} en carpeta {CarpetaId} (Tipo: {TipoCarpeta})",
-                    cambio.TipoCambio, cambio.CarpetaId, cambio.TipoCarpeta);
+                    "Procesando cambio: {TipoCambio} en carpeta {CarpetaId} (Tipo: {TipoCarpeta}, Entidad: {EntidadId})",
+                    cambio.TipoCambio, cambio.CarpetaId, cambio.TipoCarpeta, cambio.EntidadId);
 
-                // Por ahora asumimos entidad 1 - En producción esto vendría del cambio
-                // TODO: Agregar EntidadId al payload del trigger
-                long entidadId = 1;
+                // EntidadId viene del trigger de PostgreSQL
+                long entidadId = cambio.EntidadId;
 
                 // Crear scope para usar servicios Scoped
                 using var scope = _serviceProvider.CreateScope();
                 var navIndexService = scope.ServiceProvider.GetRequiredService<INavIndexService>();
 
-                // 1. Invalidar caché de la estructura
-                await navIndexService.InvalidarCacheAsync(entidadId);
+                // 1. Regenerar estructura proactivamente con lock (no invalidar)
+                // Si otro proceso ya está regenerando, esto retorna inmediatamente
+                // El caché viejo permanece disponible durante la regeneración
+                var regenerado = await navIndexService.RegenerarConLockAsync(entidadId);
 
-                // 2. Si el cambio es en un expediente/genérica hijo directo, 
-                //    también invalidar el índice del padre
+                if (regenerado)
+                {
+                    _logger.LogDebug("Estructura regenerada exitosamente para entidad {EntidadId}", entidadId);
+                }
+
+                // 2. Si el cambio es en un expediente/genérica hijo directo,
+                //    también invalidar el índice del padre (se regenerará bajo demanda)
                 if (cambio.TipoCarpeta >= 3 && cambio.CarpetaPadre.HasValue)
                 {
                     await navIndexService.InvalidarIndiceCacheAsync(entidadId, cambio.CarpetaPadre.Value);

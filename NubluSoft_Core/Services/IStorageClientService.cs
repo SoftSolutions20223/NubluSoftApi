@@ -57,6 +57,21 @@
         public bool Success { get; set; }
         public string? UploadUrl { get; set; }
         public string? ObjectName { get; set; }
+        /// <summary>
+        /// Content-Type EXACTO que se usó para firmar la URL.
+        /// El cliente DEBE usar exactamente este valor (byte por byte) al hacer el PUT request a GCS.
+        /// NO use el tipo del archivo (file.type), use ESTE valor.
+        /// </summary>
+        public string? ContentType { get; set; }
+        /// <summary>
+        /// Bytes hexadecimales del Content-Type firmado para verificación de debugging.
+        /// Útil para diagnosticar errores SignatureDoesNotMatch.
+        /// </summary>
+        public string? ContentTypeHex { get; set; }
+        /// <summary>
+        /// Longitud exacta del Content-Type firmado en bytes.
+        /// </summary>
+        public int ContentTypeLength { get; set; }
         public DateTime? ExpiresAt { get; set; }
         public int ExpiresInSeconds { get; set; }
         public string? Error { get; set; }

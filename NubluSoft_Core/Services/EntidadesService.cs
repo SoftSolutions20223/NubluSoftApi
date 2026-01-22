@@ -81,12 +81,12 @@ namespace NubluSoft_Core.Services
                 parameters.Add("Limit", response.PorPagina);
 
                 var sql = $@"
-                    SELECT 
+                    SELECT
                         e.""Cod"",
                         e.""Nombre"",
                         e.""Nit"",
                         e.""Correo"",
-                        e.""FechaLimite"",
+                        e.""FechaLimite""::timestamp AS ""FechaLimite"",
                         CASE WHEN e.""FechaLimite"" >= CURRENT_DATE THEN true ELSE false END AS ""PlanActivo"",
                         (SELECT COUNT(*) FROM usuarios.""Usuarios"" u WHERE u.""Entidad"" = e.""Cod"") AS ""TotalUsuarios""
                     FROM usuarios.""Entidades"" e
@@ -107,14 +107,14 @@ namespace NubluSoft_Core.Services
         public async Task<EntidadDto?> ObtenerPorIdAsync(long entidadId)
         {
             const string sql = @"
-                SELECT 
+                SELECT
                     e.""Cod"",
                     e.""Nombre"",
                     e.""Nit"",
                     e.""Telefono"",
                     e.""Direccion"",
                     e.""Correo"",
-                    e.""FechaLimite"",
+                    e.""FechaLimite""::timestamp AS ""FechaLimite"",
                     e.""Bd"",
                     b.""Nombre"" AS ""NombreBd"",
                     e.""Url"",

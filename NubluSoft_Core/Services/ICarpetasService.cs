@@ -22,5 +22,8 @@ namespace NubluSoft_Core.Services
         // Operaciones de expediente
         Task<(bool Success, string? Error)> CerrarExpedienteAsync(long carpetaId, long usuarioId, CerrarExpedienteRequest request);
         Task<(bool Success, string? Error)> ReabrirExpedienteAsync(long carpetaId, long usuarioId);
+
+        // Estadísticas
+        Task<CarpetaEstadisticasDto?> ObtenerEstadisticasAsync(long carpetaId, long entidadId);
     }
 }

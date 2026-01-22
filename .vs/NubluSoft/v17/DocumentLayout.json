@@ -1,12 +1,54 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|solutionrelative:nublusoft\\controllers\\authcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|c:\\users\\cristian\\documents\\github\\nublusoftapi\\nublusoft\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{34823F32-1DCB-4DCB-A06E-74EBB151C142}|NubluSoft\\NubluSoft.csproj|solutionrelative:nublusoft\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": []
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "AuthService.cs",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\Services\\AuthService.cs",
+              "RelativeDocumentMoniker": "NubluSoft\\Services\\AuthService.cs",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\Services\\AuthService.cs",
+              "RelativeToolTip": "NubluSoft\\Services\\AuthService.cs",
+              "ViewState": "AgIAAB4AAAAAAAAAAAAgwC4AAAA2AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-16T15:22:45.017Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "AuthController.cs",
+              "DocumentMoniker": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\Controllers\\AuthController.cs",
+              "RelativeDocumentMoniker": "NubluSoft\\Controllers\\AuthController.cs",
+              "ToolTip": "C:\\Users\\Cristian\\Documents\\GitHub\\NubluSoftApi\\NubluSoft\\Controllers\\AuthController.cs",
+              "RelativeToolTip": "NubluSoft\\Controllers\\AuthController.cs",
+              "ViewState": "AgIAABoAAAAAAAAAAAAawCYAAAAYAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-16T13:42:32.587Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }

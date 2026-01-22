@@ -1,0 +1,73 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Gateway (5008)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/NubluSoft/bin/Debug/net8.0/NubluSoft.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/NubluSoft",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            }
+        },
+        {
+            "name": "Core (5001)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/NubluSoft_Core/bin/Debug/net8.0/NubluSoft_Core.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/NubluSoft_Core",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Storage (5002)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/NubluSoft_Storage/bin/Debug/net8.0/NubluSoft_Storage.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/NubluSoft_Storage",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "NavIndex (5003)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/NubluSoft_NavIndex/bin/Debug/net8.0/NubluSoft_NavIndex.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/NubluSoft_NavIndex",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Signature (5004)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/NubluSoft_Signature/bin/Debug/net8.0/NubluSoft_Signature.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/NubluSoft_Signature",
+            "console": "integratedTerminal",
+            "stopAtEntry": false
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Todos los Servicios",
+            "configurations": [
+                "Gateway (5008)",
+                "Core (5001)",
+                "Storage (5002)",
+                "NavIndex (5003)",
+                "Signature (5004)"
+            ],
+            "stopAll": true,
+            "preLaunchTask": "build-all"
+        }
+    ]
+}

@@ -41,5 +41,14 @@ namespace NubluSoft_NavIndex.Services
         /// Invalida el caché de un índice específico
         /// </summary>
         Task InvalidarIndiceCacheAsync(long entidadId, long carpetaId);
+
+        /// <summary>
+        /// Regenera la estructura en background con lock distribuido.
+        /// Si otro proceso ya está regenerando, retorna inmediatamente sin hacer nada.
+        /// El caché viejo se mantiene disponible durante la regeneración.
+        /// </summary>
+        /// <param name="entidadId">ID de la entidad</param>
+        /// <returns>True si se inició la regeneración, False si ya había otra en curso</returns>
+        Task<bool> RegenerarConLockAsync(long entidadId);
     }
 }

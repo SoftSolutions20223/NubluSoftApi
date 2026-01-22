@@ -18,6 +18,7 @@ namespace NubluSoft_NavIndex.Services
         private const string PrefixEstructura = "navindex:estructura:";
         private const string PrefixVersion = "navindex:version:";
         private const string PrefixIndice = "navindex:indice:";
+        private const string PrefixLock = "navindex:lock:";
 
         public RedisCacheService(
             IConnectionMultiplexer redis,
@@ -171,6 +172,79 @@ namespace NubluSoft_NavIndex.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error invalidando índice en Redis para carpeta {CarpetaId}", carpetaId);
+            }
+        }
+
+        public async Task<string?> AdquirirLockRegeneracionAsync(long entidadId, TimeSpan lockDuration)
+        {
+            try
+            {
+                var key = $"{PrefixLock}{entidadId}";
+                var token = Guid.NewGuid().ToString();
+
+                // SET NX (solo si no existe) con expiración
+                var acquired = await _db.StringSetAsync(key, token, lockDuration, When.NotExists);
+
+                if (acquired)
+                {
+                    _logger.LogDebug("Lock adquirido para entidad {EntidadId}, token {Token}", entidadId, token);
+                    return token;
+                }
+
+                _logger.LogDebug("Lock NO adquirido para entidad {EntidadId} (ya existe)", entidadId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error adquiriendo lock para entidad {EntidadId}", entidadId);
+                return null;
+            }
+        }
+
+        public async Task LiberarLockRegeneracionAsync(long entidadId, string lockToken)
+        {
+            try
+            {
+                var key = $"{PrefixLock}{entidadId}";
+
+                // Solo liberar si el token coincide (evita liberar lock de otro proceso)
+                var script = @"
+                    if redis.call('get', KEYS[1]) == ARGV[1] then
+                        return redis.call('del', KEYS[1])
+                    else
+                        return 0
+                    end";
+
+                var result = await _db.ScriptEvaluateAsync(script,
+                    new RedisKey[] { key },
+                    new RedisValue[] { lockToken });
+
+                if ((int)result == 1)
+                {
+                    _logger.LogDebug("Lock liberado para entidad {EntidadId}", entidadId);
+                }
+                else
+                {
+                    _logger.LogWarning("Lock NO liberado para entidad {EntidadId} (token no coincide o expiró)", entidadId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error liberando lock para entidad {EntidadId}", entidadId);
+            }
+        }
+
+        public async Task<bool> ExisteLockRegeneracionAsync(long entidadId)
+        {
+            try
+            {
+                var key = $"{PrefixLock}{entidadId}";
+                return await _db.KeyExistsAsync(key);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error verificando lock para entidad {EntidadId}", entidadId);
+                return false;
             }
         }
     }

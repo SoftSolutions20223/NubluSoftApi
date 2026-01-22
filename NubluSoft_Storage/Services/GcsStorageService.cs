@@ -6,6 +6,7 @@ using NubluSoft_Storage.Configuration;
 using NubluSoft_Storage.Helpers;
 using NubluSoft_Storage.Models.DTOs;
 using System.Runtime.CompilerServices;
+using System.Web;
 
 namespace NubluSoft_Storage.Services
 {
@@ -46,7 +47,22 @@ namespace NubluSoft_Storage.Services
             }
 
             _storageClient = StorageClient.Create(credential);
-            _urlSigner = UrlSigner.FromCredential(credential);
+
+            // Usar la API moderna para crear UrlSigner
+            // FromCredential maneja automáticamente ServiceAccountCredential y otros tipos
+            var serviceAccountCredential = credential.UnderlyingCredential as ServiceAccountCredential;
+            if (serviceAccountCredential != null)
+            {
+                _urlSigner = UrlSigner.FromCredential(serviceAccountCredential);
+                _logger.LogInformation("UrlSigner inicializado con ServiceAccountCredential. Email: {Email}",
+                    serviceAccountCredential.Id);
+            }
+            else
+            {
+                // Fallback para otros tipos de credenciales (ej: ADC con impersonation)
+                _urlSigner = UrlSigner.FromCredential(credential);
+                _logger.LogWarning("UrlSigner inicializado con GoogleCredential (fallback)");
+            }
 
             _logger.LogInformation("GcsStorageService inicializado para bucket: {Bucket}", _settings.BucketName);
         }
@@ -221,7 +237,12 @@ namespace NubluSoft_Storage.Services
                     requestTemplate = requestTemplate.WithQueryParameters(queryParams);
                 }
 
-                var signedUrl = _urlSigner.Sign(requestTemplate, UrlSigner.Options.FromDuration(exp));
+                // Usar PathStyle explícitamente para consistencia con upload URLs
+                var signingOptions = UrlSigner.Options
+                    .FromDuration(exp)
+                    .WithUrlStyle(Google.Cloud.Storage.V1.UrlSigner.UrlStyle.PathStyle);
+
+                var signedUrl = _urlSigner.Sign(requestTemplate, signingOptions);
 
                 _logger.LogDebug("URL firmada generada para: {ObjectName}, expira en {Expiration}",
                     objectName, exp);
@@ -236,9 +257,11 @@ namespace NubluSoft_Storage.Services
         }
 
         /// <summary>
-        /// Genera URL firmada para upload directo desde el cliente
+        /// Genera URL firmada para upload directo desde el cliente.
+        /// NOTA: Se probó sin firmar Content-Type para diagnosticar SignatureDoesNotMatch.
+        /// Retorna tanto la URL como el Content-Type normalizado.
         /// </summary>
-        public string GenerateSignedUploadUrl(
+        public SignedUploadUrlResult GenerateSignedUploadUrl(
             string objectName,
             string contentType,
             TimeSpan? expiration = null)
@@ -247,27 +270,100 @@ namespace NubluSoft_Storage.Services
             {
                 var exp = expiration ?? TimeSpan.FromMinutes(_settings.SignedUrlExpiration);
 
-                // Crear el template de request para PUT
+                // Normalización del Content-Type (aunque no se firme, se retorna para metadata)
+                var normalizedContentType = NormalizeContentType(contentType);
+
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] Generando URL firmada SIN firmar Content-Type - Bucket: {Bucket}, ObjectName: {ObjectName}",
+                    _settings.BucketName, objectName);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] ContentType (no firmado): '{ContentType}'",
+                    normalizedContentType);
+
+                // PRUEBA DE DIAGNÓSTICO: NO incluir Content-Type en la firma
+                // El cliente enviará Content-Type, pero no estará en la firma verificada
+                // Esto permite diagnosticar si el problema es el Content-Type o algo más
                 var requestTemplate = UrlSigner.RequestTemplate
                     .FromBucket(_settings.BucketName)
                     .WithObjectName(objectName)
-                    .WithHttpMethod(HttpMethod.Put)
-                    .WithContentHeaders(new Dictionary<string, IEnumerable<string>>
-                    {
-                        { "Content-Type", new[] { contentType } }
-                    });
+                    .WithHttpMethod(HttpMethod.Put);
+                // SIN .WithContentHeaders() para no firmar Content-Type
 
-                var signedUrl = _urlSigner.Sign(requestTemplate, UrlSigner.Options.FromDuration(exp));
+                // IMPORTANTE: Usar PathStyle explícitamente para asegurar consistencia
+                var signingOptions = UrlSigner.Options
+                    .FromDuration(exp)
+                    .WithUrlStyle(Google.Cloud.Storage.V1.UrlSigner.UrlStyle.PathStyle);
 
-                _logger.LogDebug("URL firmada para upload generada: {ObjectName}", objectName);
+                var signedUrl = _urlSigner.Sign(requestTemplate, signingOptions);
 
-                return signedUrl;
+                // Log detallado de todos los parámetros de firma para debugging
+                var uri = new Uri(signedUrl);
+                var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] ===== URL FIRMADA GENERADA (SIN Content-Type) =====");
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] Host: {Host}, Path: {Path}",
+                    uri.Host, uri.AbsolutePath);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] Algorithm: {Algorithm}, Date: {Date}, Expires: {Expires}",
+                    queryParams["X-Goog-Algorithm"], queryParams["X-Goog-Date"], queryParams["X-Goog-Expires"]);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] SignedHeaders: {SignedHeaders}",
+                    queryParams["X-Goog-SignedHeaders"]);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] Credential: {Credential}",
+                    queryParams["X-Goog-Credential"]);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] Signature length: {SignatureLength} chars",
+                    queryParams["X-Goog-Signature"]?.Length ?? 0);
+                _logger.LogInformation(
+                    "[FIRMA DEBUG] ================================");
+
+                _logger.LogInformation("URL firmada para upload generada (SIN Content-Type firmado): {ObjectName}, Expira en: {Expiration}",
+                    objectName, exp);
+
+                // Retornar la URL firmada junto con el Content-Type (para que el archivo se guarde con tipo correcto)
+                return new SignedUploadUrlResult
+                {
+                    SignedUrl = signedUrl,
+                    SignedContentType = normalizedContentType
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al generar URL firmada de upload para {ObjectName}", objectName);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Normaliza el Content-Type para evitar discrepancias en la firma GCS.
+        /// Elimina espacios, parámetros adicionales (charset, boundary) y caracteres de control.
+        /// </summary>
+        private static string NormalizeContentType(string? contentType)
+        {
+            if (string.IsNullOrWhiteSpace(contentType))
+                return "application/octet-stream";
+
+            // Remover caracteres de control y espacios invisibles
+            var cleaned = new string(contentType.Where(c => !char.IsControl(c)).ToArray());
+
+            // Trim espacios normales
+            cleaned = cleaned.Trim();
+
+            // Si el Content-Type tiene parámetros (ej: "text/plain; charset=utf-8"),
+            // tomar solo la parte principal del MIME type
+            var semicolonIndex = cleaned.IndexOf(';');
+            if (semicolonIndex > 0)
+            {
+                cleaned = cleaned[..semicolonIndex].Trim();
+            }
+
+            // Si quedó vacío después de la limpieza, usar default
+            if (string.IsNullOrEmpty(cleaned))
+                return "application/octet-stream";
+
+            return cleaned;
         }
 
         /// <summary>
@@ -310,19 +406,33 @@ namespace NubluSoft_Storage.Services
         {
             try
             {
-                await _storageClient.GetObjectAsync(
+                _logger.LogInformation(
+                    "[EXISTS DEBUG GCS] Consultando GCS. Bucket: '{Bucket}', ObjectName: '{ObjectName}'",
+                    _settings.BucketName, objectName);
+
+                var obj = await _storageClient.GetObjectAsync(
                     _settings.BucketName,
                     objectName,
                     cancellationToken: cancellationToken);
+
+                _logger.LogInformation(
+                    "[EXISTS DEBUG GCS] Archivo ENCONTRADO. Name: '{Name}', Size: {Size}, Created: {Created}",
+                    obj.Name, obj.Size, obj.TimeCreatedDateTimeOffset);
+
                 return true;
             }
             catch (GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
             {
+                _logger.LogWarning(
+                    "[EXISTS DEBUG GCS] Archivo NO encontrado (404). Bucket: '{Bucket}', ObjectName: '{ObjectName}'",
+                    _settings.BucketName, objectName);
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error al verificar existencia de {ObjectName}", objectName);
+                _logger.LogError(ex,
+                    "[EXISTS DEBUG GCS] Error al verificar existencia. Bucket: '{Bucket}', ObjectName: '{ObjectName}'",
+                    _settings.BucketName, objectName);
                 throw;
             }
         }

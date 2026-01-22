@@ -41,16 +41,12 @@ namespace NubluSoft.Middleware
                 return;
             }
 
-            // Verificar si es una solicitud de WebSocket
+            // Si NO es una solicitud de WebSocket, dejar que ProxyMiddleware maneje
+            // las peticiones HTTP (como /negotiate de SignalR)
             if (!context.WebSockets.IsWebSocketRequest)
             {
-                _logger.LogWarning("Solicitud a /ws sin WebSocket upgrade");
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    Success = false,
-                    Message = "Se esperaba una conexión WebSocket"
-                });
+                _logger.LogDebug("Petición HTTP a /ws (probablemente negotiate): {Path}", context.Request.Path);
+                await _next(context);
                 return;
             }
 

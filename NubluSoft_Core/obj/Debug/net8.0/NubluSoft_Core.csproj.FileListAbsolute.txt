@@ -47,7 +47,6 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\staticwebassets.development.json
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\NubluSof.A9C91381.Up2Date
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\NubluSoft_Core.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Core\obj\Debug\net8.0\refint\NubluSoft_Core.dll

@@ -39,5 +39,25 @@
         /// Invalida el índice de una carpeta
         /// </summary>
         Task InvalidarIndiceAsync(long entidadId, long carpetaId);
+
+        /// <summary>
+        /// Intenta adquirir un lock distribuido para regeneración
+        /// </summary>
+        /// <param name="entidadId">ID de la entidad</param>
+        /// <param name="lockDuration">Duración máxima del lock</param>
+        /// <returns>Token del lock si se adquirió, null si ya está bloqueado</returns>
+        Task<string?> AdquirirLockRegeneracionAsync(long entidadId, TimeSpan lockDuration);
+
+        /// <summary>
+        /// Libera el lock de regeneración
+        /// </summary>
+        /// <param name="entidadId">ID de la entidad</param>
+        /// <param name="lockToken">Token obtenido al adquirir el lock</param>
+        Task LiberarLockRegeneracionAsync(long entidadId, string lockToken);
+
+        /// <summary>
+        /// Verifica si hay un lock activo de regeneración
+        /// </summary>
+        Task<bool> ExisteLockRegeneracionAsync(long entidadId);
     }
 }

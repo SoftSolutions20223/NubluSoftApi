@@ -44,8 +44,22 @@ namespace NubluSoft_Core.Extensions
                     ClockSkew = TimeSpan.Zero
                 };
 
+                // Soporte para WebSockets con JWT
                 options.Events = new JwtBearerEvents
                 {
+                    OnMessageReceived = context =>
+                    {
+                        // Permitir token en query string para WebSockets
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ws"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                     OnAuthenticationFailed = context =>
                     {
                         var logger = context.HttpContext.RequestServices

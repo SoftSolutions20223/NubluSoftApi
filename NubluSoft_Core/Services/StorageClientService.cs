@@ -35,6 +35,10 @@ namespace NubluSoft_Core.Services
         {
             try
             {
+                _logger.LogInformation(
+                    "[UPLOAD DEBUG Core→Storage] Solicitando URL. ObjectName: {ObjectName}, ContentType enviado: '{ContentType}'",
+                    objectName, contentType);
+
                 var request = new
                 {
                     ObjectName = objectName,
@@ -47,6 +51,13 @@ namespace NubluSoft_Core.Services
                     request,
                     authToken,
                     cancellationToken);
+
+                if (response != null)
+                {
+                    _logger.LogInformation(
+                        "[UPLOAD DEBUG Core←Storage] Respuesta recibida. Success: {Success}, ContentType recibido: '{ContentType}', URL: {HasUrl}",
+                        response.Success, response.ContentType, !string.IsNullOrEmpty(response.UploadUrl));
+                }
 
                 return response ?? new StorageUploadUrlResult
                 {
@@ -109,20 +120,70 @@ namespace NubluSoft_Core.Services
             string? authToken = null,
             CancellationToken cancellationToken = default)
         {
-            try
-            {
-                var response = await SendGetAsync<FileExistsResponse>(
-                    $"/internal/Internal/exists?objectName={Uri.EscapeDataString(objectName)}",
-                    authToken,
-                    cancellationToken);
+            // Retry con delay para manejar latencia de propagación de GCS
+            // A veces el archivo tarda unos segundos en ser visible después del upload
+            const int maxRetries = 3;
+            const int delayMs = 1500; // 1.5 segundos entre reintentos
 
-                return response?.Exists ?? false;
-            }
-            catch (Exception ex)
+            _logger.LogInformation(
+                "[EXISTS DEBUG] Verificando existencia de archivo: '{ObjectName}'",
+                objectName);
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                _logger.LogError(ex, "Error verificando existencia de {ObjectName}", objectName);
-                return false;
+                try
+                {
+                    var encodedName = Uri.EscapeDataString(objectName);
+                    var endpoint = $"/internal/Internal/exists?objectName={encodedName}";
+
+                    _logger.LogInformation(
+                        "[EXISTS DEBUG] Intento {Attempt}/{Max} - Endpoint: {Endpoint}",
+                        attempt, maxRetries, endpoint);
+
+                    var response = await SendGetAsync<FileExistsResponse>(
+                        endpoint,
+                        authToken,
+                        cancellationToken);
+
+                    var exists = response?.Exists ?? false;
+
+                    _logger.LogInformation(
+                        "[EXISTS DEBUG] Intento {Attempt} - Respuesta: Exists={Exists}, ObjectName={ResponseObj}",
+                        attempt, exists, response?.ObjectName ?? "(null)");
+
+                    if (exists)
+                    {
+                        return true;
+                    }
+
+                    // Si no existe y quedan reintentos, esperar antes del siguiente
+                    if (attempt < maxRetries)
+                    {
+                        _logger.LogWarning(
+                            "[EXISTS DEBUG] Archivo no encontrado en intento {Attempt}, esperando {Delay}ms antes de reintentar...",
+                            attempt, delayMs);
+                        await Task.Delay(delayMs, cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "[EXISTS DEBUG] Error en intento {Attempt} verificando existencia de {ObjectName}",
+                        attempt, objectName);
+
+                    if (attempt == maxRetries)
+                    {
+                        return false;
+                    }
+
+                    await Task.Delay(delayMs, cancellationToken);
+                }
             }
+
+            _logger.LogWarning(
+                "[EXISTS DEBUG] Archivo no encontrado después de {Max} intentos: {ObjectName}",
+                maxRetries, objectName);
+            return false;
         }
 
         public async Task<StorageFileInfo?> GetFileInfoAsync(

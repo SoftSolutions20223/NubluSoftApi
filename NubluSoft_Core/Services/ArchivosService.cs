@@ -24,29 +24,36 @@ namespace NubluSoft_Core.Services
 
         public async Task<IEnumerable<Archivo>> ObtenerPorCarpetaAsync(long carpetaId)
         {
+            // NOTA: La tabla usa "Tamaño" con tilde y "FechaIncorporacion"
             const string sql = @"
-                SELECT 
+                SELECT
                     a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
-                    a.""FechaSubida"", a.""FechaDocumento"", a.""CodigoDocumento"", a.""Descripcion"",
+                    a.""FechaIncorporacion"" AS ""FechaSubida"",
+                    a.""FechaDocumento"",
+                    a.""CodigoDocumento"",
+                    a.""Descripcion"",
                     a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
-                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"", a.""Tamano"", a.""Version"",
-                    a.""TipoFirma"", a.""Firmado"", a.""MetadatosAdicionales"",
+                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"",
+                    a.""Tamaño""::bigint AS ""Tamano"",
+                    a.""Version"",
+                    a.""TipoFirma"", a.""Firmado"", a.""Observaciones"" AS ""MetadatosAdicionales"",
+                    a.""ContentType"", a.""EstadoUpload"",
                     c.""Nombre"" AS ""NombreCarpeta"",
-                    u.""Nombres"" || ' ' || u.""Apellidos"" AS ""NombreSubidoPor"",
+                    u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreSubidoPor"",
                     ta.""Nombre"" AS ""NombreTipoArchivo"",
                     td.""Nombre"" AS ""NombreTipoDocumental"",
                     od.""Nombre"" AS ""NombreOrigenDocumento"",
-                    CASE 
-                        WHEN POSITION('.' IN a.""Nombre"") > 0 
+                    CASE
+                        WHEN POSITION('.' IN a.""Nombre"") > 0
                         THEN LOWER(SUBSTRING(a.""Nombre"" FROM '\.([^.]+)$'))
                         ELSE NULL
                     END AS ""Extension""
                 FROM documentos.""Archivos"" a
                 LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
-                LEFT JOIN documentos.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
+                LEFT JOIN usuarios.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
                 LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
                 LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
-                LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""
+                LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""::text
                 WHERE a.""Carpeta"" = @CarpetaId AND a.""Estado"" = true
                 ORDER BY a.""Indice"", a.""Nombre""";
 
@@ -65,18 +72,25 @@ namespace NubluSoft_Core.Services
 
         public async Task<IEnumerable<Archivo>> ObtenerConFiltrosAsync(FiltrosArchivosRequest filtros)
         {
+            // NOTA: La tabla usa "Tamaño" con tilde y "FechaIncorporacion"
             var sql = @"
-                SELECT 
+                SELECT
                     a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
-                    a.""FechaSubida"", a.""FechaDocumento"", a.""CodigoDocumento"", a.""Descripcion"",
+                    a.""FechaIncorporacion"" AS ""FechaSubida"",
+                    a.""FechaDocumento"",
+                    a.""CodigoDocumento"",
+                    a.""Descripcion"",
                     a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
-                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"", a.""Tamano"", a.""Version"",
+                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"",
+                    a.""Tamaño""::bigint AS ""Tamano"",
+                    a.""Version"",
+                    a.""ContentType"", a.""EstadoUpload"",
                     c.""Nombre"" AS ""NombreCarpeta"",
-                    u.""Nombres"" || ' ' || u.""Apellidos"" AS ""NombreSubidoPor"",
+                    u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreSubidoPor"",
                     td.""Nombre"" AS ""NombreTipoDocumental""
                 FROM documentos.""Archivos"" a
                 LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
-                LEFT JOIN documentos.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
+                LEFT JOIN usuarios.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
                 LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
                 WHERE 1=1";
 
@@ -107,17 +121,17 @@ namespace NubluSoft_Core.Services
 
             if (filtros.FechaDesde.HasValue)
             {
-                sql += @" AND a.""FechaSubida"" >= @FechaDesde";
+                sql += @" AND a.""FechaIncorporacion"" >= @FechaDesde";
                 parameters.Add("FechaDesde", filtros.FechaDesde.Value);
             }
 
             if (filtros.FechaHasta.HasValue)
             {
-                sql += @" AND a.""FechaSubida"" <= @FechaHasta";
+                sql += @" AND a.""FechaIncorporacion"" <= @FechaHasta";
                 parameters.Add("FechaHasta", filtros.FechaHasta.Value.AddDays(1));
             }
 
-            sql += @" ORDER BY a.""FechaSubida"" DESC, a.""Nombre""";
+            sql += @" ORDER BY a.""FechaIncorporacion"" DESC, a.""Nombre""";
 
             try
             {
@@ -134,31 +148,37 @@ namespace NubluSoft_Core.Services
 
         public async Task<Archivo?> ObtenerPorIdAsync(long archivoId)
         {
+            // NOTA: La tabla usa "Tamaño" con tilde y "FechaIncorporacion"
             const string sql = @"
-                SELECT 
-            a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
-            a.""FechaSubida"", a.""FechaDocumento"", a.""CodigoDocumento"", a.""Descripcion"",
-            a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
-            a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"", a.""Tamano"", a.""Version"",
-            a.""TipoFirma"", a.""Firmado"", a.""MetadatosAdicionales"",
-            a.""ContentType"", a.""EstadoUpload"",
-            c.""Nombre"" AS ""NombreCarpeta"",
-            u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreSubidoPor"",
-            ta.""Nombre"" AS ""NombreTipoArchivo"",
-            td.""Nombre"" AS ""NombreTipoDocumental"",
-            od.""Nombre"" AS ""NombreOrigenDocumento"",
-            CASE 
-                WHEN POSITION('.' IN a.""Nombre"") > 0 
-                THEN LOWER(SUBSTRING(a.""Nombre"" FROM '\.([^.]+)$'))
-                ELSE NULL
-            END AS ""Extension""
-        FROM documentos.""Archivos"" a
-        LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
-        LEFT JOIN usuarios.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
-        LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
-        LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
-        LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""::text
-        WHERE a.""Cod"" = @ArchivoId";
+                SELECT
+                    a.""Cod"", a.""Nombre"", a.""Ruta"", a.""Carpeta"", a.""Estado"", a.""Indice"",
+                    a.""FechaIncorporacion"" AS ""FechaSubida"",
+                    a.""FechaDocumento"",
+                    a.""CodigoDocumento"",
+                    a.""Descripcion"",
+                    a.""SubidoPor"", a.""TipoArchivo"", a.""TipoDocumental"", a.""OrigenDocumento"",
+                    a.""PaginaInicio"", a.""PaginaFin"", a.""Hash"",
+                    a.""Tamaño""::bigint AS ""Tamano"",
+                    a.""Version"",
+                    a.""TipoFirma"", a.""Firmado"", a.""Observaciones"" AS ""MetadatosAdicionales"",
+                    a.""ContentType"", a.""EstadoUpload"",
+                    c.""Nombre"" AS ""NombreCarpeta"",
+                    u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreSubidoPor"",
+                    ta.""Nombre"" AS ""NombreTipoArchivo"",
+                    td.""Nombre"" AS ""NombreTipoDocumental"",
+                    od.""Nombre"" AS ""NombreOrigenDocumento"",
+                    CASE
+                        WHEN POSITION('.' IN a.""Nombre"") > 0
+                        THEN LOWER(SUBSTRING(a.""Nombre"" FROM '\.([^.]+)$'))
+                        ELSE NULL
+                    END AS ""Extension""
+                FROM documentos.""Archivos"" a
+                LEFT JOIN documentos.""Carpetas"" c ON a.""Carpeta"" = c.""Cod"" AND c.""Estado"" = true
+                LEFT JOIN usuarios.""Usuarios"" u ON a.""SubidoPor"" = u.""Cod""
+                LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
+                LEFT JOIN documentos.""Tipos_Documentales"" td ON a.""TipoDocumental"" = td.""Cod""
+                LEFT JOIN documentos.""Origenes_Documentos"" od ON a.""OrigenDocumento"" = od.""Cod""::text
+                WHERE a.""Cod"" = @ArchivoId";
 
             try
             {
@@ -168,20 +188,23 @@ namespace NubluSoft_Core.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error obteniendo archivo {ArchivoId}", archivoId);
+                _logger.LogError(ex, "Error obteniendo archivo {ArchivoId}: {Message}", archivoId, ex.Message);
                 return null;
             }
         }
 
         public async Task<IEnumerable<VersionArchivo>> ObtenerVersionesAsync(long archivoId)
         {
+            // NOTA: La tabla usa "Tamaño" con tilde y "FechaVersion"
             const string sql = @"
-                SELECT 
-                    v.""Cod"", v.""Archivo"", v.""Version"", v.""Ruta"", v.""Hash"", v.""Tamano"",
-                    v.""FechaCreacion"", v.""CreadoPor"", v.""Comentario"", v.""EsVersionActual"",
-                    u.""Nombres"" || ' ' || u.""Apellidos"" AS ""NombreCreadoPor""
+                SELECT
+                    v.""Cod"", v.""Archivo"", v.""Version"", v.""Ruta"", v.""Hash"",
+                    v.""Tamaño""::bigint AS ""Tamano"",
+                    v.""FechaVersion"" AS ""FechaCreacion"",
+                    v.""CreadoPor"", v.""Comentario"", v.""EsVersionActual"",
+                    u.""Nombres"" || ' ' || COALESCE(u.""Apellidos"", '') AS ""NombreCreadoPor""
                 FROM documentos.""Versiones_Archivos"" v
-                LEFT JOIN documentos.""Usuarios"" u ON v.""CreadoPor"" = u.""Cod""
+                LEFT JOIN usuarios.""Usuarios"" u ON v.""CreadoPor"" = u.""Cod""
                 WHERE v.""Archivo"" = @ArchivoId
                 ORDER BY v.""Version"" DESC";
 
@@ -454,9 +477,18 @@ namespace NubluSoft_Core.Services
                     };
                 }
 
+                // Determinar qué ContentType usar - preferir el de Storage (es el que se firmó)
+                var contentTypeParaFrontend = urlResult.ContentType ?? request.ContentType;
+
                 _logger.LogInformation(
-                    "Upload iniciado: ArchivoId={ArchivoId}, Object={ObjectName}, Usuario={Usuario}",
+                    "[UPLOAD DEBUG] Upload iniciado: ArchivoId={ArchivoId}, Object={ObjectName}, Usuario={Usuario}",
                     archivoId, objectName, usuarioId);
+                _logger.LogInformation(
+                    "[UPLOAD DEBUG] ContentTypes - Request: '{RequestCT}', Storage: '{StorageCT}', Final: '{FinalCT}'",
+                    request.ContentType, urlResult.ContentType ?? "(NULL)", contentTypeParaFrontend);
+                _logger.LogInformation(
+                    "[UPLOAD DEBUG] ContentType Hex: {Hex}, Length: {Len}",
+                    urlResult.ContentTypeHex ?? "(NULL)", urlResult.ContentTypeLength);
 
                 return new IniciarUploadResponse
                 {
@@ -467,7 +499,11 @@ namespace NubluSoft_Core.Services
                     ObjectName = objectName,
                     UrlExpiraEn = urlResult.ExpiresAt,
                     SegundosParaExpirar = urlResult.ExpiresInSeconds,
-                    ContentType = request.ContentType
+                    // IMPORTANTE: Usar el ContentType de Storage, que es exactamente el que se usó para firmar la URL
+                    ContentType = contentTypeParaFrontend,
+                    // Información de debugging para diagnosticar SignatureDoesNotMatch
+                    ContentTypeHex = urlResult.ContentTypeHex,
+                    ContentTypeLength = urlResult.ContentTypeLength
                 };
             }
             catch (Exception ex)
@@ -493,6 +529,9 @@ namespace NubluSoft_Core.Services
                 var archivo = await ObtenerArchivoPendienteAsync(archivoId);
                 if (archivo == null)
                 {
+                    _logger.LogWarning(
+                        "[CONFIRMAR DEBUG] Archivo no encontrado o ya confirmado: ArchivoId={ArchivoId}",
+                        archivoId);
                     return new ConfirmarUploadResponse
                     {
                         Exito = false,
@@ -500,14 +539,30 @@ namespace NubluSoft_Core.Services
                     };
                 }
 
+                _logger.LogInformation(
+                    "[CONFIRMAR DEBUG] Archivo pendiente encontrado: ArchivoId={ArchivoId}, Nombre='{Nombre}', Ruta='{Ruta}'",
+                    archivo.ArchivoId, archivo.Nombre, archivo.Ruta);
+
                 // 2. Verificar que el archivo existe en GCS
+                _logger.LogInformation(
+                    "[CONFIRMAR DEBUG] Verificando existencia en GCS con ruta: '{Ruta}'",
+                    archivo.Ruta);
+
                 var existeEnGcs = await _storageClient.FileExistsAsync(archivo.Ruta, authToken);
+
+                _logger.LogInformation(
+                    "[CONFIRMAR DEBUG] Resultado verificación GCS: Exists={Exists}",
+                    existeEnGcs);
+
                 if (!existeEnGcs)
                 {
+                    _logger.LogError(
+                        "[CONFIRMAR DEBUG] Archivo NO encontrado en GCS. Ruta buscada: '{Ruta}'",
+                        archivo.Ruta);
                     return new ConfirmarUploadResponse
                     {
                         Exito = false,
-                        Mensaje = "El archivo no se encontró en el storage. El upload no se completó."
+                        Mensaje = $"El archivo no se encontró en el storage. Ruta: {archivo.Ruta}"
                     };
                 }
 
@@ -688,8 +743,19 @@ namespace NubluSoft_Core.Services
             var extension = Path.GetExtension(nombreArchivo);
             var nombreBase = Path.GetFileNameWithoutExtension(nombreArchivo);
 
-            // Sanitizar nombre
-            var nombreLimpio = string.Join("_", nombreBase.Split(Path.GetInvalidFileNameChars()));
+            // Sanitizar nombre - reemplazar espacios y caracteres problemáticos
+            var nombreLimpio = nombreBase
+                .Replace(" ", "_")           // Espacios por guion bajo
+                .Replace("%", "_")           // Porcentaje puede causar problemas de encoding
+                .Replace("#", "_")           // Numeral
+                .Replace("&", "_")           // Ampersand
+                .Replace("?", "_")           // Interrogación
+                .Replace("+", "_");          // Más
+
+            // Remover caracteres inválidos de archivo
+            nombreLimpio = string.Join("_", nombreLimpio.Split(Path.GetInvalidFileNameChars()));
+
+            // Limitar longitud
             if (nombreLimpio.Length > 50) nombreLimpio = nombreLimpio[..50];
 
             return $"entidad_{entidadId}/carpeta_{carpetaId}/{timestamp}_{guid}_{nombreLimpio}{extension}";
@@ -740,15 +806,22 @@ namespace NubluSoft_Core.Services
             DateTime? fechaDocumento,
             string? codigoDocumento)
         {
+            // Nota: La tabla Archivos usa columnas con nombres específicos:
+            // - "SubidoPor" (no UsuarioCreador)
+            // - "FechaIncorporacion" (tiene DEFAULT CURRENT_TIMESTAMP)
+            // - "Tamaño" con tilde (es VARCHAR, no BIGINT)
+            // - "Version" (no VersionActual)
+            // - "Cod" es NOT NULL y debe generarse con F_SiguienteCod
             const string sql = @"
             INSERT INTO documentos.""Archivos"" (
-                ""Nombre"", ""Ruta"", ""Tamano"", ""ContentType"", ""Carpeta"",
-                ""UsuarioCreador"", ""FechaCreacion"", ""Estado"", ""EstadoUpload"",
+                ""Cod"", ""Nombre"", ""Ruta"", ""Tamaño"", ""ContentType"", ""Carpeta"",
+                ""SubidoPor"", ""Estado"", ""EstadoUpload"",
                 ""Descripcion"", ""TipoDocumental"", ""FechaDocumento"", ""CodigoDocumento"",
-                ""VersionActual""
+                ""Version""
             ) VALUES (
+                documentos.""F_SiguienteCod""('Archivos', NULL),
                 @Nombre, @Ruta, @Tamano, @ContentType, @Carpeta,
-                @Usuario, NOW(), true, 'PENDIENTE',
+                @Usuario, true, 'PENDIENTE',
                 @Descripcion, @TipoDocumental, @FechaDocumento, @CodigoDocumento,
                 1
             ) RETURNING ""Cod""";
@@ -762,7 +835,7 @@ namespace NubluSoft_Core.Services
                 {
                     Nombre = nombre,
                     Ruta = ruta,
-                    Tamano = tamano,
+                    Tamano = tamano.ToString(), // Convertir a string porque "Tamaño" es VARCHAR(50)
                     ContentType = contentType,
                     Carpeta = carpetaId,
                     Usuario = usuarioId,
@@ -784,11 +857,11 @@ namespace NubluSoft_Core.Services
         private async Task<ArchivosPendiente?> ObtenerArchivoPendienteAsync(long archivoId)
         {
             const string sql = @"
-            SELECT 
+            SELECT
                 ""Cod"" as ArchivoId,
                 ""Nombre"",
                 ""Ruta"",
-                ""Tamano"",
+                ""Tamaño"" as Tamano,
                 ""ContentType"",
                 ""Carpeta"" as CarpetaId
             FROM documentos.""Archivos""
@@ -806,14 +879,16 @@ namespace NubluSoft_Core.Services
             string? hash,
             long tamano)
         {
+            // Nota: La tabla Archivos usa:
+            // - "Tamaño" con tilde (es VARCHAR, no BIGINT)
+            // - No tiene columna "UsuarioModificador"
             const string sql = @"
             UPDATE documentos.""Archivos""
-            SET 
+            SET
                 ""EstadoUpload"" = 'COMPLETADO',
                 ""Hash"" = @Hash,
-                ""Tamano"" = @Tamano,
-                ""FechaModificacion"" = NOW(),
-                ""UsuarioModificador"" = @Usuario
+                ""Tamaño"" = @Tamano,
+                ""FechaModificacion"" = NOW()
             WHERE ""Cod"" = @ArchivoId AND ""EstadoUpload"" = 'PENDIENTE'";
 
             try
@@ -825,8 +900,7 @@ namespace NubluSoft_Core.Services
                 {
                     ArchivoId = archivoId,
                     Hash = hash,
-                    Tamano = tamano,
-                    Usuario = usuarioId
+                    Tamano = tamano.ToString() // Convertir a string porque "Tamaño" es VARCHAR(50)
                 });
 
                 return updated > 0;
@@ -849,6 +923,40 @@ namespace NubluSoft_Core.Services
             public long Tamano { get; set; }
             public string? ContentType { get; set; }
             public long CarpetaId { get; set; }
+        }
+
+        // ==================== DIAGNÓSTICO ====================
+
+        public async Task<IEnumerable<dynamic>> ListarTodosParaDiagnosticoAsync(int limit = 20)
+        {
+            // Consulta directa sin mapeo de entidad para evitar problemas con "Tamaño"
+            const string sql = @"
+                SELECT
+                    ""Cod"",
+                    ""Nombre"",
+                    ""Ruta"",
+                    ""Estado"",
+                    ""EstadoUpload"",
+                    ""ContentType"",
+                    ""Tamaño"" as Tamano,
+                    ""Carpeta"",
+                    ""SubidoPor"",
+                    ""FechaIncorporacion""
+                FROM documentos.""Archivos""
+                ORDER BY ""Cod"" DESC
+                LIMIT @Limit";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+                return await connection.QueryAsync<dynamic>(sql, new { Limit = limit });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error listando archivos para diagnóstico");
+                return Enumerable.Empty<dynamic>();
+            }
         }
     }
 }

@@ -50,7 +50,6 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\stati
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\staticwebassets.development.json
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\NubluSoft.csproj.Up2Date
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\NubluSoft.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft\obj\Debug\net8.0\refint\NubluSoft.dll

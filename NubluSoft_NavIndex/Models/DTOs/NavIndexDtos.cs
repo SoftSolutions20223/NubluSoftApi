@@ -19,6 +19,12 @@
         public long? TRD { get; set; }
         public string? CodigoTRD { get; set; }
         public string? NombreTipoCarpeta { get; set; }
+
+        // Estadísticas (solo para carpetas raíz/Series - TipoCarpeta = 1)
+        public int? ExpedientesActivos { get; set; }
+        public int? DocumentosTotales { get; set; }
+        public int? UsuariosConAcceso { get; set; }
+        public DateTime? UltimaModificacion { get; set; }
     }
 
     /// <summary>

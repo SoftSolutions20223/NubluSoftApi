@@ -208,20 +208,76 @@ namespace NubluSoft_NavIndex.Services
             await _cacheService.InvalidarIndiceAsync(entidadId, carpetaId);
         }
 
+        public async Task<bool> RegenerarConLockAsync(long entidadId)
+        {
+            // Duración máxima del lock (debe ser mayor al tiempo de regeneración)
+            var lockDuration = TimeSpan.FromSeconds(30);
+
+            // Intentar adquirir lock
+            var lockToken = await _cacheService.AdquirirLockRegeneracionAsync(entidadId, lockDuration);
+
+            if (lockToken == null)
+            {
+                // Otro proceso ya está regenerando, salir sin hacer nada
+                _logger.LogDebug("Regeneración omitida para entidad {EntidadId} - otro proceso está regenerando", entidadId);
+                return false;
+            }
+
+            try
+            {
+                _logger.LogInformation("Iniciando regeneración proactiva para entidad {EntidadId}", entidadId);
+
+                // Generar nueva estructura desde PostgreSQL
+                var estructura = await GenerarEstructuraDesdeDbAsync(entidadId);
+
+                // Serializar y comprimir
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(estructura, new Newtonsoft.Json.JsonSerializerSettings
+                {
+                    NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
+                    DateFormatString = "yyyy-MM-ddTHH:mm:ss"
+                });
+
+                var comprimido = ComprimirGzip(json);
+
+                // Guardar en caché (sobrescribe el anterior atómicamente)
+                await _cacheService.GuardarEstructuraComprimidaAsync(entidadId, comprimido, estructura.Version);
+
+                _logger.LogInformation(
+                    "Regeneración completada para entidad {EntidadId}: {TotalNodos} nodos, {Size} bytes",
+                    entidadId, estructura.TotalNodos, comprimido.Length);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error en regeneración proactiva para entidad {EntidadId}", entidadId);
+                return false;
+            }
+            finally
+            {
+                // Siempre liberar el lock
+                await _cacheService.LiberarLockRegeneracionAsync(entidadId, lockToken);
+            }
+        }
+
         #region Métodos Privados
 
         /// <summary>
         /// Genera la estructura documental desde PostgreSQL
-        /// Incluye: Series, Subseries, y Expedientes/Genéricas hijos directos de Serie/Subserie
+        /// Incluye: Series, Subseries, Genéricas en raíz, Expedientes/Genéricas hijos directos de Serie/Subserie,
+        /// y también hijos directos de Genéricas raíz.
+        /// Para Series (TipoCarpeta = 1) y Genéricas raíz incluye estadísticas.
         /// </summary>
         private async Task<EstructuraDocumental> GenerarEstructuraDesdeDbAsync(long entidadId)
         {
             // Obtener carpetas que van en la estructura:
-            // - Todas las Series (TipoCarpeta = 1)
+            // - Todas las Series (TipoCarpeta = 1) con estadísticas
             // - Todas las Subseries (TipoCarpeta = 2)
-            // - Expedientes y Genéricas (TipoCarpeta 3 y 4) cuyo padre es Serie o Subserie
+            // - Genéricas en la raíz (TipoCarpeta = 4 y CarpetaPadre IS NULL) con estadísticas
+            // - Expedientes y Genéricas cuyo padre es Serie o Subserie
+            // - Expedientes y Genéricas cuyo padre es una Genérica raíz
             const string sql = @"
-                SELECT 
+                SELECT
                     c.""Cod"",
                     c.""Nombre"",
                     c.""CodSerie"",
@@ -235,19 +291,81 @@ namespace NubluSoft_NavIndex.Services
                     c.""Delegado"",
                     c.""TRD"",
                     t.""Codigo"" AS ""CodigoTRD"",
-                    tc.""Nombre"" AS ""NombreTipoCarpeta""
+                    tc.""Nombre"" AS ""NombreTipoCarpeta"",
+
+                    -- Estadísticas para carpetas raíz: Series (TipoCarpeta = 1) y Genéricas raíz (TipoCarpeta = 4 sin padre)
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""ExpedientesActivos"" END AS ""ExpedientesActivos"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""DocumentosTotales"" END AS ""DocumentosTotales"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""UsuariosConAcceso"" END AS ""UsuariosConAcceso"",
+                    CASE WHEN c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                         THEN stats.""UltimaModificacion"" END AS ""UltimaModificacion""
                 FROM documentos.""Carpetas"" c
                 LEFT JOIN documentos.""Tablas_Retencion_Documental"" t ON c.""TRD"" = t.""Cod""
                 LEFT JOIN documentos.""Tipos_Carpetas"" tc ON c.""TipoCarpeta"" = tc.""Cod""
+                LEFT JOIN LATERAL (
+                    SELECT
+                        -- Expedientes activos (TipoCarpeta = 3, EstadoCarpeta = 1 Abierto)
+                        -- Para Series: busca por SerieRaiz, para Genéricas raíz: busca por CarpetaPadre recursivo
+                        (SELECT COUNT(*)
+                         FROM documentos.""Carpetas"" sub
+                         WHERE (sub.""SerieRaiz"" = c.""Cod"" OR sub.""CarpetaPadre"" = c.""Cod"")
+                           AND sub.""TipoCarpeta"" = 3
+                           AND sub.""EstadoCarpeta"" = 1
+                           AND sub.""Estado"" = true) AS ""ExpedientesActivos"",
+
+                        -- Documentos totales en la carpeta y sus subcarpetas
+                        (SELECT COUNT(*)
+                         FROM documentos.""Archivos"" a
+                         INNER JOIN documentos.""Carpetas"" ca ON a.""Carpeta"" = ca.""Cod""
+                         WHERE (ca.""SerieRaiz"" = c.""Cod"" OR ca.""CarpetaPadre"" = c.""Cod"" OR ca.""Cod"" = c.""Cod"")
+                           AND a.""Estado"" = true
+                           AND ca.""Estado"" = true) AS ""DocumentosTotales"",
+
+                        -- Usuarios con acceso (para Series usa TRD, para Genéricas cuenta usuarios de la entidad)
+                        (SELECT COUNT(DISTINCT ru.""Usuario"")
+                         FROM documentos.""Roles_Usuarios"" ru
+                         INNER JOIN documentos.""Oficinas_TRD"" ot ON ru.""Oficina"" = ot.""Oficina""
+                         WHERE (c.""TRD"" IS NOT NULL AND ot.""TRD"" = c.""TRD"" OR c.""TRD"" IS NULL)
+                           AND ot.""Estado"" = true
+                           AND ot.""Entidad"" = @EntidadId
+                           AND ru.""Estado"" = true) AS ""UsuariosConAcceso"",
+
+                        -- Última modificación (carpetas o archivos)
+                        GREATEST(
+                            c.""FechaModificacion"",
+                            (SELECT MAX(sub.""FechaModificacion"")
+                             FROM documentos.""Carpetas"" sub
+                             WHERE (sub.""SerieRaiz"" = c.""Cod"" OR sub.""CarpetaPadre"" = c.""Cod"")
+                               AND sub.""Estado"" = true),
+                            (SELECT MAX(a.""FechaModificacion"")
+                             FROM documentos.""Archivos"" a
+                             INNER JOIN documentos.""Carpetas"" ca ON a.""Carpeta"" = ca.""Cod""
+                             WHERE (ca.""SerieRaiz"" = c.""Cod"" OR ca.""CarpetaPadre"" = c.""Cod"" OR ca.""Cod"" = c.""Cod"")
+                               AND a.""Estado"" = true AND ca.""Estado"" = true)
+                        ) AS ""UltimaModificacion""
+                ) stats ON c.""TipoCarpeta"" = 1 OR (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
                 WHERE c.""Estado"" = true
+                AND c.""Entidad"" = @EntidadId
                 AND (
                     -- Series y Subseries siempre
                     c.""TipoCarpeta"" IN (1, 2)
                     OR
+                    -- Genéricas en la raíz (sin padre)
+                    (c.""TipoCarpeta"" = 4 AND c.""CarpetaPadre"" IS NULL)
+                    OR
                     -- Expedientes y Genéricas cuyo padre es Serie o Subserie
                     (c.""TipoCarpeta"" IN (3, 4) AND c.""CarpetaPadre"" IN (
-                        SELECT ""Cod"" FROM documentos.""Carpetas"" 
-                        WHERE ""TipoCarpeta"" IN (1, 2) AND ""Estado"" = true
+                        SELECT ""Cod"" FROM documentos.""Carpetas""
+                        WHERE ""TipoCarpeta"" IN (1, 2) AND ""Estado"" = true AND ""Entidad"" = @EntidadId
+                    ))
+                    OR
+                    -- Expedientes y Genéricas cuyo padre es una Genérica raíz
+                    (c.""TipoCarpeta"" IN (3, 4) AND c.""CarpetaPadre"" IN (
+                        SELECT ""Cod"" FROM documentos.""Carpetas""
+                        WHERE ""TipoCarpeta"" = 4 AND ""CarpetaPadre"" IS NULL AND ""Estado"" = true AND ""Entidad"" = @EntidadId
                     ))
                 )
                 ORDER BY c.""TipoCarpeta"", t.""Codigo"", c.""Nombre""";
@@ -257,7 +375,7 @@ namespace NubluSoft_NavIndex.Services
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
 
-                var nodos = (await connection.QueryAsync<NodoNavegacion>(sql)).ToList();
+                var nodos = (await connection.QueryAsync<NodoNavegacion>(sql, new { EntidadId = entidadId })).ToList();
 
                 var version = DateTime.UtcNow.Ticks.ToString();
 

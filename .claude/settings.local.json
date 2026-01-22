@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(redis-cli ping:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(dotnet run:*)",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(ping:*)",
+      "Bash(psql:*)",
+      "Bash(\"C:\\\\Program Files\\\\PostgreSQL\\\\17\\\\bin\\\\psql\" -U postgres -d nublusoft -c \"SELECT \"\"Cod\"\", \"\"Usuario_\"\", \"\"Entidad\"\" FROM usuarios.\"\"Usuarios\"\" LIMIT 5\")",
+      "Bash(set PGPASSWORD=8213:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(del:*)",
+      "Bash(gsutil cors set:*)",
+      "Bash(where:*)",
+      "WebSearch",
+      "Bash(npx ng build:*)"
+    ]
+  }
+}

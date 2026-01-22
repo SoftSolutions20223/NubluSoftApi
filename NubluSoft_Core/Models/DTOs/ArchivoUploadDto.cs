@@ -90,9 +90,22 @@ namespace NubluSoft_Core.Models.DTOs
         public int? SegundosParaExpirar { get; set; }
 
         /// <summary>
-        /// Content-Type que debe usar el frontend al subir
+        /// Content-Type EXACTO que debe usar el frontend al subir.
+        /// IMPORTANTE: El frontend DEBE usar EXACTAMENTE este valor (byte por byte)
+        /// en el header Content-Type del PUT a GCS. NO usar file.type del navegador.
         /// </summary>
         public string? ContentType { get; set; }
+
+        /// <summary>
+        /// Bytes hexadecimales del Content-Type firmado para debugging.
+        /// El frontend puede comparar con sus propios bytes para diagnosticar SignatureDoesNotMatch.
+        /// </summary>
+        public string? ContentTypeHex { get; set; }
+
+        /// <summary>
+        /// Longitud exacta en bytes del Content-Type firmado.
+        /// </summary>
+        public int? ContentTypeLength { get; set; }
     }
 
     /// <summary>

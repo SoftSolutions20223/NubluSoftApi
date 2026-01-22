@@ -29,6 +29,7 @@ namespace NubluSoft_NavIndex.Services
         public long? CarpetaPadre { get; set; }
         public long? SerieRaiz { get; set; }
         public string? Nombre { get; set; }
+        public long EntidadId { get; set; }
         public bool EsEstructura { get; set; }
         public long Timestamp { get; set; }
     }

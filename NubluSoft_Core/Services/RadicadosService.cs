@@ -22,9 +22,9 @@ namespace NubluSoft_Core.Services
         public async Task<IEnumerable<Radicado>> ObtenerConFiltrosAsync(long entidadId, FiltrosRadicadosRequest filtros)
         {
             var sql = @"
-                SELECT 
+                SELECT
                     r.""Cod"", r.""NumeroRadicado"", r.""Entidad"", r.""TipoComunicacion"",
-                    r.""Asunto"", r.""Descripcion"", r.""FechaRadicacion"", r.""FechaDocumento"",
+                    r.""Asunto"", r.""Descripcion"", r.""FechaRadicacion"", r.""FechaDocumento""::timestamp AS ""FechaDocumento"",
                     r.""FechaVencimiento"", r.""TipoSolicitud"", r.""EstadoRadicado"", r.""Prioridad"",
                     r.""MedioRecepcion"", r.""UsuarioRadica"", r.""OficinaOrigen"", r.""OficinaDestino"",
                     r.""UsuarioAsignado"", r.""Tercero"", r.""RadicadoPadre"", r.""ExpedienteVinculado"",
@@ -157,9 +157,9 @@ namespace NubluSoft_Core.Services
         public async Task<Radicado?> ObtenerPorIdAsync(long radicadoId)
         {
             const string sql = @"
-                SELECT 
+                SELECT
                     r.""Cod"", r.""NumeroRadicado"", r.""Entidad"", r.""TipoComunicacion"",
-                    r.""Asunto"", r.""Descripcion"", r.""FechaRadicacion"", r.""FechaDocumento"",
+                    r.""Asunto"", r.""Descripcion"", r.""FechaRadicacion"", r.""FechaDocumento""::timestamp AS ""FechaDocumento"",
                     r.""FechaVencimiento"", r.""TipoSolicitud"", r.""EstadoRadicado"", r.""Prioridad"",
                     r.""MedioRecepcion"", r.""UsuarioRadica"", r.""OficinaOrigen"", r.""OficinaDestino"",
                     r.""UsuarioAsignado"", r.""Tercero"", r.""RadicadoPadre"", r.""ExpedienteVinculado"",

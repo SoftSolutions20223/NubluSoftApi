@@ -45,7 +45,7 @@ namespace NubluSoft.Services
                         u.""SesionActiva"",
                         u.""Token"",
                         e.""Nombre"" AS NombreEntidad,
-                        e.""FechaLimite""
+                        e.""FechaLimite""::timestamp AS ""FechaLimite""
                     FROM usuarios.""Usuarios"" u
                     INNER JOIN usuarios.""Entidades"" e ON u.""Entidad"" = e.""Cod""
                     WHERE u.""Usuario"" = @Usuario";
@@ -107,7 +107,7 @@ namespace NubluSoft.Services
                         ""Nit"",
                         ""Direccion"",
                         ""Correo"",
-                        ""FechaLimite"",
+                        ""FechaLimite""::timestamp AS ""FechaLimite"",
                         ""Bd"",
                         ""Url"",
                         ""Coleccion""

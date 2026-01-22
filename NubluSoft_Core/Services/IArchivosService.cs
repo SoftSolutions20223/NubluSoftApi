@@ -41,5 +41,10 @@ namespace NubluSoft_Core.Services
         /// Obtiene URL de descarga para un archivo
         /// </summary>
         Task<DescargarArchivoResponse> ObtenerUrlDescargaAsync(long archivoId, long usuarioId, string authToken);
+
+        /// <summary>
+        /// Lista todos los archivos para diagnóstico (sin filtros)
+        /// </summary>
+        Task<IEnumerable<dynamic>> ListarTodosParaDiagnosticoAsync(int limit = 20);
     }
 }

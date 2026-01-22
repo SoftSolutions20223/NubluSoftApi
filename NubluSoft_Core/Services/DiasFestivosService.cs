@@ -68,7 +68,7 @@ namespace NubluSoft_Core.Services
                 }
 
                 var sql = $@"
-                    SELECT ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
+                    SELECT ""Fecha""::timestamp AS ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
                     FROM documentos.""Dias_Festivos""
                     {whereClause}
                     ORDER BY ""Fecha""";
@@ -93,7 +93,7 @@ namespace NubluSoft_Core.Services
         public async Task<DiaFestivoDto?> ObtenerPorFechaAsync(DateTime fecha)
         {
             const string sql = @"
-                SELECT ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
+                SELECT ""Fecha""::timestamp AS ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
                 FROM documentos.""Dias_Festivos""
                 WHERE ""Fecha"" = @Fecha";
 
@@ -126,7 +126,7 @@ namespace NubluSoft_Core.Services
         public async Task<IEnumerable<DiaFestivoDto>> ObtenerProximosAsync(int cantidad = 5)
         {
             const string sql = @"
-                SELECT ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
+                SELECT ""Fecha""::timestamp AS ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
                 FROM documentos.""Dias_Festivos""
                 WHERE ""Fecha"" >= CURRENT_DATE
                 ORDER BY ""Fecha""
@@ -180,7 +180,7 @@ namespace NubluSoft_Core.Services
 
                 // Próximo festivo
                 var proximoFestivo = await connection.QueryFirstOrDefaultAsync<DiaFestivoDto>(@"
-                    SELECT ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
+                    SELECT ""Fecha""::timestamp AS ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
                     FROM documentos.""Dias_Festivos""
                     WHERE ""Fecha"" >= CURRENT_DATE
                     ORDER BY ""Fecha""
@@ -194,7 +194,7 @@ namespace NubluSoft_Core.Services
 
                 // Festivos del mes actual
                 var festivosDelMes = await connection.QueryAsync<DiaFestivoDto>(@"
-                    SELECT ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
+                    SELECT ""Fecha""::timestamp AS ""Fecha"", ""Nombre"", ""EsFijo"", ""Pais""
                     FROM documentos.""Dias_Festivos""
                     WHERE EXTRACT(YEAR FROM ""Fecha"") = @Anio
                       AND EXTRACT(MONTH FROM ""Fecha"") = @Mes
@@ -310,7 +310,7 @@ namespace NubluSoft_Core.Services
 
                 // Obtener todos los festivos desde la fecha de inicio hacia adelante
                 var festivos = await connection.QueryAsync<DateTime>(@"
-                    SELECT ""Fecha"" FROM documentos.""Dias_Festivos""
+                    SELECT ""Fecha""::timestamp AS ""Fecha"" FROM documentos.""Dias_Festivos""
                     WHERE ""Fecha"" >= @FechaInicio
                     ORDER BY ""Fecha""",
                     new { FechaInicio = fechaInicio.Date });
@@ -367,7 +367,7 @@ namespace NubluSoft_Core.Services
 
                 // Obtener festivos en el rango
                 var festivos = await connection.QueryAsync<DateTime>(@"
-                    SELECT ""Fecha"" FROM documentos.""Dias_Festivos""
+                    SELECT ""Fecha""::timestamp AS ""Fecha"" FROM documentos.""Dias_Festivos""
                     WHERE ""Fecha"" >= @FechaInicio AND ""Fecha"" <= @FechaFin",
                     new { FechaInicio = fechaInicio.Date, FechaFin = fechaFin.Date });
 

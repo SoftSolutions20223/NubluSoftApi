@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["http://localhost:4200"],
+    "method": ["GET", "PUT", "POST", "DELETE", "HEAD", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Content-Length", "Content-MD5", "x-goog-*", "Authorization"],
+    "maxAgeSeconds": 3600
+  }
+]

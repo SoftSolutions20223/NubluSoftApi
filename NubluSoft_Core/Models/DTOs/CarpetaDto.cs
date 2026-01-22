@@ -143,4 +143,35 @@ namespace NubluSoft_Core.Models.DTOs
         public string? Busqueda { get; set; }
         public bool SoloActivas { get; set; } = true;
     }
+
+    /// <summary>
+    /// Estadísticas de una carpeta raíz (Serie/Subserie)
+    /// </summary>
+    public class CarpetaEstadisticasDto
+    {
+        /// <summary>
+        /// ID de la carpeta
+        /// </summary>
+        public long CarpetaCod { get; set; }
+
+        /// <summary>
+        /// Cantidad de expedientes activos (TipoCarpeta = 3, EstadoCarpeta = 1)
+        /// </summary>
+        public int ExpedientesActivos { get; set; }
+
+        /// <summary>
+        /// Total de documentos/archivos dentro de la carpeta y subcarpetas
+        /// </summary>
+        public int DocumentosTotales { get; set; }
+
+        /// <summary>
+        /// Cantidad de usuarios con acceso a través de oficinas asignadas a la TRD
+        /// </summary>
+        public int UsuariosConAcceso { get; set; }
+
+        /// <summary>
+        /// Fecha de última modificación de la carpeta o cualquier subcarpeta/archivo
+        /// </summary>
+        public DateTime? UltimaModificacion { get; set; }
+    }
 }

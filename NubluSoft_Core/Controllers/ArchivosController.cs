@@ -251,15 +251,66 @@ namespace NubluSoft_Core.Controllers
             if (usuarioId == 0)
                 return Unauthorized(new { Message = "No se pudo determinar el usuario" });
 
+            _logger.LogInformation("[DOWNLOAD-URL] Solicitando URL para archivo {ArchivoId}, Usuario {UsuarioId}", id, usuarioId);
+
             var authToken = HttpContext.Request.Headers["Authorization"]
                 .FirstOrDefault()?.Replace("Bearer ", "") ?? string.Empty;
 
             var resultado = await _service.ObtenerUrlDescargaAsync(id, usuarioId, authToken);
 
+            _logger.LogInformation("[DOWNLOAD-URL] Resultado: Exito={Exito}, Mensaje={Mensaje}", resultado.Exito, resultado.Mensaje);
+
             if (!resultado.Exito)
+            {
+                _logger.LogWarning("[DOWNLOAD-URL] Archivo {ArchivoId} no encontrado o error: {Mensaje}", id, resultado.Mensaje);
                 return NotFound(resultado);
+            }
 
             return Ok(resultado);
+        }
+
+        /// <summary>
+        /// DIAGNÓSTICO: Ver estado real de un archivo (incluye PENDIENTES)
+        /// </summary>
+        [HttpGet("{id}/diagnostico")]
+        public async Task<IActionResult> GetDiagnostico(long id)
+        {
+            var archivo = await _service.ObtenerPorIdAsync(id);
+
+            if (archivo == null)
+            {
+                return Ok(new {
+                    Encontrado = false,
+                    Mensaje = $"No existe archivo con ID {id} en la base de datos",
+                    ArchivoId = id
+                });
+            }
+
+            return Ok(new {
+                Encontrado = true,
+                ArchivoId = archivo.Cod,
+                Nombre = archivo.Nombre,
+                Ruta = archivo.Ruta,
+                Estado = archivo.Estado,
+                EstadoUpload = archivo.EstadoUpload,
+                ContentType = archivo.ContentType,
+                Tamano = archivo.Tamano,
+                Carpeta = archivo.Carpeta,
+                FechaSubida = archivo.FechaSubida
+            });
+        }
+
+        /// <summary>
+        /// DIAGNÓSTICO: Lista todos los archivos de la BD (sin filtros)
+        /// </summary>
+        [HttpGet("diagnostico/listar")]
+        public async Task<IActionResult> ListarTodosArchivos([FromQuery] int limit = 20)
+        {
+            var archivos = await _service.ListarTodosParaDiagnosticoAsync(limit);
+            return Ok(new {
+                Total = archivos.Count(),
+                Archivos = archivos
+            });
         }
     }
 }

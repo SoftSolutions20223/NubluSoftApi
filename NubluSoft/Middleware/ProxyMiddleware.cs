@@ -42,16 +42,20 @@ namespace NubluSoft.Middleware
     { "/api/oficinas-trd", "CoreService" },
     { "/api/prestamos", "CoreService" },
     { "/api/entidades", "CoreService" },
-    
+
     // NubluSoft_NavIndex (Puerto 5003)
     { "/api/navegacion", "NavIndexService" },
-    
-    // NubluSoft_Signature (Puerto 5004) - AGREGAR ESTAS LÍNEAS
+
+    // NubluSoft_Signature (Puerto 5004)
     { "/api/solicitudes", "SignatureService" },
     { "/api/firma", "SignatureService" },
     { "/api/certificados", "SignatureService" },
     { "/api/verificar", "SignatureService" },
-    { "/api/configuracion", "SignatureService" }
+    { "/api/configuracion", "SignatureService" },
+
+    // WebSocket/SignalR - Rutas HTTP para negociación (negotiate, etc.)
+    { "/ws/navegacion", "NavIndexService" },
+    { "/ws/notificaciones", "CoreService" }
 };
 
         public ProxyMiddleware(
@@ -74,6 +78,13 @@ namespace NubluSoft.Middleware
             if (path.StartsWith("/internal"))
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            // Si es una conexión WebSocket, dejar que WebSocketProxyMiddleware la maneje
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                await _next(context);
                 return;
             }
 

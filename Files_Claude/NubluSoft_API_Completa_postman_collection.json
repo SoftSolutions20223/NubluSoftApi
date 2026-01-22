@@ -1,0 +1,3617 @@
+{
+	"info": {
+		"_postman_id": "nublusoft-api-completa-2026-v5",
+		"name": "NubluSoft API - Sistema de Gestión Documental (COMPLETA v5.0)",
+		"description": "Colección completa de endpoints para el Sistema de Gestión Documental NubluSoft.\n\n**🔴 IMPORTANTE:** Todas las peticiones van al Gateway (puerto 5008) que actúa como punto único de entrada y enruta a los microservicios correspondientes.\n\n**Arquitectura de Microservicios:**\n- 🚪 Gateway (5008): Autenticación JWT y enrutamiento\n- ⚙️ Core (5001): Lógica de negocio principal\n- 📦 Storage (5002): Almacenamiento GCS\n- 🗂️ NavIndex (5003): Navegación y caché Redis\n- ✍️ Signature (5004): Firma electrónica\n\n**Flujo de autenticación:**\n1. Ejecutar Login para obtener el token\n2. El token se guarda automáticamente en la variable {{token}}\n3. Todas las demás peticiones usan este token\n\n**Cumplimiento normativo:**\n- Ley 594/2000 - Archivos\n- Ley 1755/2015 - PQRSD\n- Ley 527/1999 - Firma electrónica\n- Acuerdo 060/2001 - Radicación\n- Acuerdo 004/2019 - TRD\n\nVersión: 5.0 - Enero 2026 (Corregida y Completa)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "🔐 Autenticación (Gateway)",
+			"description": "Endpoints de autenticación manejados directamente por el Gateway",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set('token', jsonData.token);",
+									"        pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"        console.log('✅ Token guardado correctamente');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"usuario\": \"admin\",\n    \"contraseña\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "logout"]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "refresh"]
+						}
+					}
+				},
+				{
+					"name": "Validar Token",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auth/validate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "validate"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "👤 Usuarios",
+			"description": "Gestión de usuarios de la entidad",
+			"item": [
+				{
+					"name": "Listar Usuarios",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios"]
+						}
+					}
+				},
+				{
+					"name": "Listar con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios?busqueda=juan&oficina=1&rol=2&soloActivos=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios"],
+							"query": [
+								{"key": "busqueda", "value": "juan"},
+								{"key": "oficina", "value": "1"},
+								{"key": "rol", "value": "2"},
+								{"key": "soloActivos", "value": "true"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Usuario por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "1"]
+						}
+					}
+				},
+				{
+					"name": "Mi Perfil",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/perfil",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "perfil"]
+						}
+					}
+				},
+				{
+					"name": "Crear Usuario",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"usuario\": \"nuevousuario\",\n    \"contraseña\": \"Temporal123!\",\n    \"nombres\": \"Juan Carlos\",\n    \"apellidos\": \"Pérez López\",\n    \"correo\": \"juan.perez@entidad.gov.co\",\n    \"telefono\": \"3001234567\",\n    \"oficina\": 1,\n    \"rol\": 2,\n    \"cargo\": \"Profesional Universitario\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/usuarios",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Usuario",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombres\": \"Juan Carlos\",\n    \"apellidos\": \"Pérez López\",\n    \"correo\": \"juan.perez@entidad.gov.co\",\n    \"telefono\": \"3001234567\",\n    \"oficina\": 1,\n    \"rol\": 2,\n    \"cargo\": \"Profesional Especializado\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Usuario (Soft Delete)",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "1"]
+						}
+					}
+				},
+				{
+					"name": "Cambiar Contraseña",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contraseñaActual\": \"admin123\",\n    \"nuevaContraseña\": \"NuevaContraseña123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/cambiar-contrasena",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "cambiar-contrasena"]
+						}
+					}
+				},
+				{
+					"name": "Activar/Desactivar Usuario",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/1/toggle-estado",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "1", "toggle-estado"]
+						}
+					}
+				},
+				{
+					"name": "Restablecer Contraseña (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nuevaContraseña\": \"Temporal123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/usuarios/1/restablecer-contrasena",
+							"host": ["{{base_url}}"],
+							"path": ["api", "usuarios", "1", "restablecer-contrasena"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🏢 Oficinas",
+			"description": "Gestión de estructura organizacional (dependencias)",
+			"item": [
+				{
+					"name": "Listar Oficinas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Árbol de Oficinas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas/arbol",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas", "arbol"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Oficina por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Oficina",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Oficina de Gestión Documental\",\n    \"codigo\": \"100.10\",\n    \"sigla\": \"OGD\",\n    \"oficinaPadre\": 1,\n    \"responsable\": 2,\n    \"nivelJerarquico\": 2,\n    \"telefono\": \"6018001234\",\n    \"correo\": \"gestiondocumental@entidad.gov.co\",\n    \"ubicacion\": \"Piso 3, Oficina 301\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/oficinas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Oficina",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Oficina de Gestión Documental Actualizada\",\n    \"codigo\": \"100.10\",\n    \"sigla\": \"OGD\",\n    \"responsable\": 2,\n    \"telefono\": \"6018001234\",\n    \"correo\": \"gestiondocumental@entidad.gov.co\",\n    \"ubicacion\": \"Piso 3, Oficina 302\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/oficinas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Oficina",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Usuarios de Oficina",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas/1/usuarios",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas", "1", "usuarios"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📁 Carpetas",
+			"description": "Gestión de estructura documental (Series, Subseries, Expedientes, Genéricas)",
+			"item": [
+				{
+					"name": "Listar Carpetas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas?soloActivas=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas"],
+							"query": [{"key": "soloActivas", "value": "true"}]
+						}
+					}
+				},
+				{
+					"name": "Listar con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas?tipoCarpeta=3&busqueda=actas&soloActivas=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas"],
+							"query": [
+								{"key": "tipoCarpeta", "value": "3"},
+								{"key": "busqueda", "value": "actas"},
+								{"key": "soloActivas", "value": "true"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Carpeta por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Hijos de Carpeta",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/hijos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "hijos"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Ruta Completa",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/ruta",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "ruta"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Carpetas Raíz",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/raices",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "raices"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Árbol de Series/Subseries",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/arbol",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "arbol"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Árbol por Oficina",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/arbol?oficina=1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "arbol"],
+							"query": [{"key": "oficina", "value": "1"}]
+						}
+					}
+				},
+				{
+					"name": "Crear Expediente",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Expediente Contrato 2026-001\",\n    \"descripcion\": \"Documentación del contrato de prestación de servicios\",\n    \"tipoCarpeta\": 3,\n    \"carpetaPadre\": 1,\n    \"trd\": 1,\n    \"nivelVisualizacion\": 1,\n    \"soporte\": 1,\n    \"frecuenciaConsulta\": 2,\n    \"ubicacionFisica\": \"Archivo Central - Estante 3\",\n    \"palabrasClave\": \"contrato, servicios, 2026\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas"]
+						}
+					}
+				},
+				{
+					"name": "Crear Serie Documental",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"ACTAS\",\n    \"descripcion\": \"Serie de actas institucionales\",\n    \"tipoCarpeta\": 1,\n    \"trd\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Carpeta",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Expediente Contrato 2026-001 (Actualizado)\",\n    \"descripcion\": \"Documentación actualizada del contrato\",\n    \"palabrasClave\": \"contrato, servicios, 2026, modificado\",\n    \"observaciones\": \"Expediente modificado por adición de contrato\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Mover Carpeta",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"carpetaDestino\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/mover",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "mover"]
+						}
+					}
+				},
+				{
+					"name": "Copiar Carpeta",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"carpetaDestino\": 2,\n    \"nuevoNombre\": \"Copia de Expediente\",\n    \"incluirArchivos\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/copiar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "copiar"]
+						}
+					}
+				},
+				{
+					"name": "Cerrar Expediente",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"motivoCierre\": \"Trámite finalizado - Contrato liquidado\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/cerrar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "cerrar"]
+						}
+					}
+				},
+				{
+					"name": "Reabrir Expediente",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1/reabrir",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1", "reabrir"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Carpeta (Soft Delete)",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/carpetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "carpetas", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📄 Archivos",
+			"description": "Gestión de documentos electrónicos y versiones",
+			"item": [
+				{
+					"name": "Obtener Archivo por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1"]
+						}
+					}
+				},
+				{
+					"name": "Listar Archivos de Carpeta",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/carpeta/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "carpeta", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Versiones",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1/versiones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1", "versiones"]
+						}
+					}
+				},
+				{
+					"name": "Crear Archivo (Metadatos)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"carpeta\": 1,\n    \"nombre\": \"Acta de Reunión 001-2026\",\n    \"descripcion\": \"Acta de reunión de junta directiva\",\n    \"ruta\": \"entidad-1/2026/actas/acta-001.pdf\",\n    \"tipoDocumental\": 1,\n    \"tamano\": 1048576,\n    \"hash\": \"a1b2c3d4e5f6\",\n    \"extension\": \"pdf\",\n    \"contentType\": \"application/pdf\",\n    \"origenDocumento\": \"Electrónico\",\n    \"fechaDocumento\": \"2026-01-15\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/archivos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Archivo",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Acta de Reunión 001-2026 (Corregida)\",\n    \"descripcion\": \"Acta de reunión de junta directiva - versión corregida\",\n    \"tipoDocumental\": 1,\n    \"palabrasClave\": \"acta, reunión, junta, 2026\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Nueva Versión",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ruta\": \"entidad-1/2026/actas/acta-001-v2.pdf\",\n    \"tamano\": 1150000,\n    \"hash\": \"b2c3d4e5f6g7\",\n    \"observaciones\": \"Versión con firmas incluidas\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1/versiones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1", "versiones"]
+						}
+					}
+				},
+				{
+					"name": "Restaurar Versión Anterior",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1/restaurar/2",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1", "restaurar", "2"]
+						}
+					}
+				},
+				{
+					"name": "Obtener URL de Descarga",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1/descargar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1", "descargar"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Archivo",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/archivos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "archivos", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📦 Storage (Almacenamiento)",
+			"description": "Gestión de archivos en Google Cloud Storage",
+			"item": [
+				{
+					"name": "Iniciar Upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombreArchivo\": \"documento.pdf\",\n    \"carpetaId\": 1,\n    \"tipoDocumental\": 1,\n    \"contentType\": \"application/pdf\",\n    \"tamano\": 1048576\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/storage/iniciar-upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "iniciar-upload"]
+						}
+					}
+				},
+				{
+					"name": "Confirmar Upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"uploadId\": \"upload-uuid-here\",\n    \"hash\": \"sha256-hash-del-archivo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/storage/confirmar-upload",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "confirmar-upload"]
+						}
+					}
+				},
+				{
+					"name": "Obtener URL de Descarga",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/storage/1/descargar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "1", "descargar"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Versiones de Archivo",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/storage/1/versiones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "1", "versiones"]
+						}
+					}
+				},
+				{
+					"name": "Descargar Versión Específica",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/storage/version/1/descargar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "version", "1", "descargar"]
+						}
+					}
+				},
+				{
+					"name": "Descargar Carpeta como ZIP",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/storage/carpeta/1/descargar-zip",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "carpeta", "1", "descargar-zip"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Estadísticas de Almacenamiento",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/storage/estadisticas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "storage", "estadisticas"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📬 Radicados (Ventanilla Única)",
+			"description": "Gestión de correspondencia oficial según Ley 1755/2015 y Acuerdo 060/2001",
+			"item": [
+				{
+					"name": "📥 Consultas",
+					"item": [
+						{
+							"name": "Listar Radicados",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados"]
+								}
+							}
+						},
+						{
+							"name": "Listar con Filtros",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados?tipoComunicacion=E&estadoRadicado=1&fechaInicio=2026-01-01&fechaFin=2026-12-31",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados"],
+									"query": [
+										{"key": "tipoComunicacion", "value": "E"},
+										{"key": "estadoRadicado", "value": "1"},
+										{"key": "fechaInicio", "value": "2026-01-01"},
+										{"key": "fechaFin", "value": "2026-12-31"}
+									]
+								}
+							}
+						},
+						{
+							"name": "Obtener por ID",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1"]
+								}
+							}
+						},
+						{
+							"name": "Obtener por Número de Radicado",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/numero/E2026-00001",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "numero", "E2026-00001"]
+								}
+							}
+						},
+						{
+							"name": "Obtener Trazabilidad",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/trazabilidad",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "trazabilidad"]
+								}
+							}
+						},
+						{
+							"name": "Obtener Anexos",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/anexos",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "anexos"]
+								}
+							}
+						},
+						{
+							"name": "Radicados Asignados a Mí",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/asignados",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "asignados"]
+								}
+							}
+						},
+						{
+							"name": "Radicados Por Vencer (Ley 1755)",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/por-vencer?dias=3",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "por-vencer"],
+									"query": [{"key": "dias", "value": "3"}]
+								}
+							}
+						},
+						{
+							"name": "Radicados Vencidos",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/vencidos",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "vencidos"]
+								}
+							}
+						},
+						{
+							"name": "Resumen de Radicados (Dashboard)",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/resumen",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "resumen"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "📝 Radicación",
+					"item": [
+						{
+							"name": "Radicar Entrada (PQRSD)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"asunto\": \"Derecho de petición - Solicitud de información\",\n    \"descripcion\": \"El ciudadano solicita información sobre trámites de licencia de construcción\",\n    \"tipoSolicitud\": 1,\n    \"prioridad\": 1,\n    \"tercero\": 1,\n    \"oficinaDestino\": 1,\n    \"usuarioAsignado\": 2,\n    \"medioRecepcion\": \"PRESENCIAL\",\n    \"folios\": 3,\n    \"anexos\": 1,\n    \"requiereRespuesta\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/entrada",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "entrada"]
+								}
+							}
+						},
+						{
+							"name": "Radicar Salida (Respuesta)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"asunto\": \"Respuesta a derecho de petición\",\n    \"descripcion\": \"Se da respuesta a la solicitud de información\",\n    \"tercero\": 1,\n    \"oficinaOrigen\": 1,\n    \"radicadoPadre\": 1,\n    \"folios\": 5,\n    \"observaciones\": \"Respuesta en término legal\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/salida",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "salida"]
+								}
+							}
+						},
+						{
+							"name": "Radicar Interna (Memorando)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"asunto\": \"Solicitud de concepto técnico\",\n    \"descripcion\": \"Se solicita concepto técnico para viabilidad del proyecto\",\n    \"oficinaOrigen\": 1,\n    \"oficinaDestino\": 2,\n    \"usuarioAsignado\": 3,\n    \"prioridad\": 2,\n    \"folios\": 2,\n    \"requiereRespuesta\": true\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/interna",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "interna"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "⚡ Acciones",
+					"item": [
+						{
+							"name": "Asignar Radicado",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"oficinaDestino\": 2,\n    \"usuarioAsignado\": 3,\n    \"observaciones\": \"Se asigna para trámite\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/asignar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "asignar"]
+								}
+							}
+						},
+						{
+							"name": "Trasladar por Competencia (Ley 1755 Art. 21)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"oficinaDestino\": 3,\n    \"motivo\": \"El asunto es de competencia de la Oficina Jurídica según el Art. 21 de la Ley 1755/2015\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/trasladar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "trasladar"]
+								}
+							}
+						},
+						{
+							"name": "Solicitar Prórroga (Ley 1755 Art. 14)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"motivo\": \"Se requiere prórroga para solicitar concepto a otra dependencia\",\n    \"diasAdicionales\": 10\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/prorroga",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "prorroga"]
+								}
+							}
+						},
+						{
+							"name": "Responder Radicado",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"respuesta\": \"Se da respuesta a la solicitud del ciudadano\",\n    \"archivoRespuesta\": 1,\n    \"observaciones\": \"Respuesta dentro de términos legales\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/responder",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "responder"]
+								}
+							}
+						},
+						{
+							"name": "Cerrar Radicado",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"motivoCierre\": \"Trámite finalizado satisfactoriamente\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/cerrar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "cerrar"]
+								}
+							}
+						},
+						{
+							"name": "Archivar en Expediente",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"expediente\": 1,\n    \"observaciones\": \"Archivado en expediente de contratos 2026\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/archivar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "archivar"]
+								}
+							}
+						},
+						{
+							"name": "Anular Radicado",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"motivo\": \"Radicado duplicado - Se anuló por error de digitación\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/anular",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "anular"]
+								}
+							}
+						},
+						{
+							"name": "Agregar Anexo",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"nombre\": \"Documento de identidad\",\n    \"ruta\": \"entidad-1/radicados/2026/anexo-001.pdf\",\n    \"descripcion\": \"Copia de cédula del peticionario\",\n    \"tamano\": 512000\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/radicados/1/anexos",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "1", "anexos"]
+								}
+							}
+						},
+						{
+							"name": "Eliminar Anexo",
+							"request": {
+								"method": "DELETE",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/radicados/anexos/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "radicados", "anexos", "1"]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "👥 Terceros",
+			"description": "Gestión de personas naturales y jurídicas (remitentes/destinatarios)",
+			"item": [
+				{
+					"name": "Listar Terceros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros"]
+						}
+					}
+				},
+				{
+					"name": "Buscar Terceros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros?busqueda=garcia&tipoPersona=NATURAL",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros"],
+							"query": [
+								{"key": "busqueda", "value": "garcia"},
+								{"key": "tipoPersona", "value": "NATURAL"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener por Documento",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros/documento/1/1234567890",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros", "documento", "1", "1234567890"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Radicados de Tercero",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros/1/radicados",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros", "1", "radicados"]
+						}
+					}
+				},
+				{
+					"name": "Crear Persona Natural",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tipoPersona\": \"NATURAL\",\n    \"tipoDocumento\": 1,\n    \"numeroDocumento\": \"1234567890\",\n    \"nombres\": \"Juan Carlos\",\n    \"apellidos\": \"García López\",\n    \"correo\": \"juan.garcia@email.com\",\n    \"celular\": \"3001234567\",\n    \"direccion\": \"Calle 123 # 45-67\",\n    \"ciudad\": \"Bogotá\",\n    \"departamento\": \"Cundinamarca\",\n    \"notificarPorCorreo\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/terceros",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros"]
+						}
+					}
+				},
+				{
+					"name": "Crear Persona Jurídica",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tipoPersona\": \"JURIDICA\",\n    \"tipoDocumento\": 6,\n    \"numeroDocumento\": \"900123456-1\",\n    \"razonSocial\": \"Empresa ABC S.A.S.\",\n    \"representanteLegal\": \"María Fernanda Rodríguez\",\n    \"correo\": \"contacto@empresaabc.com\",\n    \"telefono\": \"6018001234\",\n    \"direccion\": \"Carrera 10 # 20-30 Of. 501\",\n    \"ciudad\": \"Bogotá\",\n    \"departamento\": \"Cundinamarca\",\n    \"notificarPorCorreo\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/terceros",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Tercero",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"correo\": \"nuevo.correo@email.com\",\n    \"celular\": \"3109876543\",\n    \"direccion\": \"Nueva Dirección 456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/terceros/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros", "1"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Tercero",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/terceros/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "terceros", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📋 TRD (Tablas de Retención)",
+			"description": "Gestión de Tablas de Retención Documental según Acuerdo 004/2019",
+			"item": [
+				{
+					"name": "Listar TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd"]
+						}
+					}
+				},
+				{
+					"name": "Listar con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd?tipo=Serie&busqueda=actas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd"],
+							"query": [
+								{"key": "tipo", "value": "Serie"},
+								{"key": "busqueda", "value": "actas"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Árbol TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/arbol",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "arbol"]
+						}
+					}
+				},
+				{
+					"name": "Obtener TRD por Oficina",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/oficina/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "oficina", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Subseries de TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/1/subseries",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1", "subseries"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Versiones de TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/1/versiones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1", "versiones"]
+						}
+					}
+				},
+				{
+					"name": "Crear TRD (Serie/Subserie)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"ACTAS\",\n    \"codigo\": \"100.01\",\n    \"tipo\": \"Serie\",\n    \"disposicionFinal\": 1,\n    \"tiempoGestion\": 2,\n    \"tiempoCentral\": 8,\n    \"procedimiento\": \"Al cumplir tiempo de retención, transferir al Archivo Central\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/trd",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar TRD",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"ACTAS DE COMITÉ\",\n    \"tiempoGestion\": 3,\n    \"tiempoCentral\": 10,\n    \"procedimiento\": \"Actualizado según nueva normativa\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1"]
+						}
+					}
+				},
+				{
+					"name": "Crear Nueva Versión de TRD",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"observaciones\": \"Nueva versión por actualización normativa\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/trd/1/versiones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1", "versiones"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar TRD",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "trd", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📎 Oficinas-TRD (Permisos)",
+			"description": "Gestión de permisos de TRD por oficina",
+			"item": [
+				{
+					"name": "Listar Asignaciones",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd"]
+						}
+					}
+				},
+				{
+					"name": "Obtener TRDs de Oficina",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Oficinas con TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "trd", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Resumen de Oficina",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1/resumen",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1", "resumen"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Todas las TRD con Estado de Acceso",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1/todas-trd",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1", "todas-trd"]
+						}
+					}
+				},
+				{
+					"name": "Verificar Acceso a Carpeta",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/verificar/carpeta/1?oficinaId=1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "verificar", "carpeta", "1"],
+							"query": [{"key": "oficinaId", "value": "1"}]
+						}
+					}
+				},
+				{
+					"name": "Verificar Acceso a TRD",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/verificar/trd/1?oficinaId=1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "verificar", "trd", "1"],
+							"query": [{"key": "oficinaId", "value": "1"}]
+						}
+					}
+				},
+				{
+					"name": "Asignar TRD a Oficina",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"trdId\": 1,\n    \"oficinaId\": 2,\n    \"puedeCrear\": true,\n    \"puedeEditar\": true,\n    \"puedeEliminar\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd"]
+						}
+					}
+				},
+				{
+					"name": "Asignar Múltiples TRD (Masivo)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"oficinaId\": 2,\n    \"trdIds\": [1, 2, 3],\n    \"puedeCrear\": true,\n    \"puedeEditar\": true,\n    \"puedeEliminar\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/masivo",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "masivo"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Permisos",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"puedeCrear\": true,\n    \"puedeEditar\": true,\n    \"puedeEliminar\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1", "trd", "1"]
+						}
+					}
+				},
+				{
+					"name": "Revocar TRD de Oficina",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1/trd/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1", "trd", "1"]
+						}
+					}
+				},
+				{
+					"name": "Revocar Todos los Accesos de Oficina",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/oficinas-trd/oficina/1/todos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "oficinas-trd", "oficina", "1", "todos"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📦 Transferencias Documentales",
+			"description": "Transferencias primarias y secundarias según Acuerdo 003/2015",
+			"item": [
+				{
+					"name": "Listar Transferencias",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias"]
+						}
+					}
+				},
+				{
+					"name": "Listar con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias?tipo=PRIMARIA&estado=PENDIENTE",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias"],
+							"query": [
+								{"key": "tipo", "value": "PRIMARIA"},
+								{"key": "estado", "value": "PENDIENTE"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Expedientes de Transferencia",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/expedientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "expedientes"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Transferencias Pendientes",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/pendientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "pendientes"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Resumen (Dashboard)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/resumen",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "resumen"]
+						}
+					}
+				},
+				{
+					"name": "Crear Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tipo\": \"PRIMARIA\",\n    \"archivoOrigen\": 1,\n    \"archivoDestino\": 2,\n    \"observaciones\": \"Transferencia primaria al Archivo Central\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transferencias",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias"]
+						}
+					}
+				},
+				{
+					"name": "Agregar Expediente a Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"expedienteId\": 4,\n    \"observaciones\": \"Expediente cerrado listo para transferencia\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/expedientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "expedientes"]
+						}
+					}
+				},
+				{
+					"name": "Remover Expediente de Transferencia",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/expedientes/4",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "expedientes", "4"]
+						}
+					}
+				},
+				{
+					"name": "Enviar Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/enviar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "enviar"]
+						}
+					}
+				},
+				{
+					"name": "Recibir Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"observaciones\": \"Recibido conforme\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/recibir",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "recibir"]
+						}
+					}
+				},
+				{
+					"name": "Rechazar Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"motivo\": \"Expedientes incompletos - Faltan folios\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/rechazar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "rechazar"]
+						}
+					}
+				},
+				{
+					"name": "Ejecutar Transferencia",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1/ejecutar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1", "ejecutar"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Borrador",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/transferencias/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "transferencias", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📚 Préstamos de Expedientes",
+			"description": "Control de préstamos de expedientes físicos según Ley 594/2000",
+			"item": [
+				{
+					"name": "Listar Préstamos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos"]
+						}
+					}
+				},
+				{
+					"name": "Listar con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos?estado=PENDIENTE&pagina=1&porPagina=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos"],
+							"query": [
+								{"key": "estado", "value": "PENDIENTE"},
+								{"key": "pagina", "value": "1"},
+								{"key": "porPagina", "value": "10"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener por Expediente",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/expediente/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "expediente", "1"]
+						}
+					}
+				},
+				{
+					"name": "Mis Solicitudes de Préstamo",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/mis-solicitudes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "mis-solicitudes"]
+						}
+					}
+				},
+				{
+					"name": "Préstamos Pendientes de Autorización",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/pendientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "pendientes"]
+						}
+					}
+				},
+				{
+					"name": "Préstamos Vencidos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/vencidos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "vencidos"]
+						}
+					}
+				},
+				{
+					"name": "Resumen de Préstamos (Dashboard)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/resumen",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "resumen"]
+						}
+					}
+				},
+				{
+					"name": "Verificar Disponibilidad de Expediente",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/disponibilidad/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "disponibilidad", "1"]
+						}
+					}
+				},
+				{
+					"name": "Solicitar Préstamo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"carpetaId\": 1,\n    \"motivo\": \"Revisión de documentos para auditoría\",\n    \"fechaDevolucionEstimada\": \"2026-02-15\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/prestamos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos"]
+						}
+					}
+				},
+				{
+					"name": "Autorizar Préstamo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"aprobado\": true,\n    \"observaciones\": \"Aprobado - Entregar en Archivo Central\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/1/autorizar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "1", "autorizar"]
+						}
+					}
+				},
+				{
+					"name": "Registrar Entrega",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"observaciones\": \"Entregado con 50 folios\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/1/entregar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "1", "entregar"]
+						}
+					}
+				},
+				{
+					"name": "Registrar Devolución",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"observaciones\": \"Devuelto completo\",\n    \"estadoDocumentos\": \"BUENO\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/1/devolver",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "1", "devolver"]
+						}
+					}
+				},
+				{
+					"name": "Cancelar Solicitud",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"motivo\": \"Ya no se requiere el expediente\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/prestamos/1/cancelar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "prestamos", "1", "cancelar"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📅 Días Festivos",
+			"description": "Gestión de días festivos para cálculo de términos legales (Ley 1755/2015)",
+			"item": [
+				{
+					"name": "Listar Festivos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos"]
+						}
+					}
+				},
+				{
+					"name": "Listar por Año",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos?anio=2026",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos"],
+							"query": [{"key": "anio", "value": "2026"}]
+						}
+					}
+				},
+				{
+					"name": "Obtener por Fecha",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/2026-01-01",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "2026-01-01"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Resumen del Año",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/resumen/2026",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "resumen", "2026"]
+						}
+					}
+				},
+				{
+					"name": "Verificar si es Día Hábil",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/verificar-habil/2026-01-15",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "verificar-habil", "2026-01-15"]
+						}
+					}
+				},
+				{
+					"name": "Verificar si es Festivo",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/es-festivo/2026-01-06",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "es-festivo", "2026-01-06"]
+						}
+					}
+				},
+				{
+					"name": "Calcular Fecha de Vencimiento",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fechaInicio\": \"2026-01-15\",\n    \"diasHabiles\": 15\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/calcular-fecha",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "calcular-fecha"]
+						}
+					}
+				},
+				{
+					"name": "Calcular Días Hábiles Entre Fechas",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fechaInicio\": \"2026-01-01\",\n    \"fechaFin\": \"2026-01-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/calcular-dias",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "calcular-dias"]
+						}
+					}
+				},
+				{
+					"name": "Crear Festivo",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fecha\": \"2026-12-25\",\n    \"nombre\": \"Navidad\",\n    \"tipo\": \"Fijo\",\n    \"esNacional\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Festivo",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Navidad (actualizado)\",\n    \"tipo\": \"Fijo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/2026-12-25",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "2026-12-25"]
+						}
+					}
+				},
+				{
+					"name": "Generar Festivos Colombia (Ley Emiliani)",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/generar/2026?sobreescribir=false",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "generar", "2026"],
+							"query": [{"key": "sobreescribir", "value": "false"}]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Festivo",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/diasfestivos/2026-12-25",
+							"host": ["{{base_url}}"],
+							"path": ["api", "diasfestivos", "2026-12-25"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🔔 Notificaciones",
+			"description": "Sistema de notificaciones en tiempo real",
+			"item": [
+				{
+					"name": "Obtener Notificaciones",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones?soloNoLeidas=true&limite=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones"],
+							"query": [
+								{"key": "soloNoLeidas", "value": "true"},
+								{"key": "limite", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Notificación por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Contador de No Leídas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones/contador",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones", "contador"]
+						}
+					}
+				},
+				{
+					"name": "Marcar como Leída",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones/1/leer",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones", "1", "leer"]
+						}
+					}
+				},
+				{
+					"name": "Marcar Todas como Leídas",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones/leer-todas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones", "leer-todas"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Notificación",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/notificaciones/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "notificaciones", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Auditoría",
+			"description": "Consulta de trazabilidad, logs y papelera del sistema",
+			"item": [
+				{
+					"name": "Obtener Historial de Acciones",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/historial?pagina=1&porPagina=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "historial"],
+							"query": [
+								{"key": "pagina", "value": "1"},
+								{"key": "porPagina", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Historial con Filtros",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/historial?tabla=Carpetas&accion=CREAR&fechaInicio=2026-01-01&fechaFin=2026-12-31",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "historial"],
+							"query": [
+								{"key": "tabla", "value": "Carpetas"},
+								{"key": "accion", "value": "CREAR"},
+								{"key": "fechaInicio", "value": "2026-01-01"},
+								{"key": "fechaFin", "value": "2026-12-31"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Historial de Registro Específico",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/historial/Carpetas/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "historial", "Carpetas", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Archivos Eliminados (Papelera)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/archivos-eliminados",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "archivos-eliminados"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Carpetas Eliminadas (Papelera)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/carpetas-eliminadas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "carpetas-eliminadas"]
+						}
+					}
+				},
+				{
+					"name": "Restaurar Archivo Eliminado",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/archivos-eliminados/1/restaurar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "archivos-eliminados", "1", "restaurar"]
+						}
+					}
+				},
+				{
+					"name": "Restaurar Carpeta Eliminada",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/carpetas-eliminadas/1/restaurar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "carpetas-eliminadas", "1", "restaurar"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Archivo Permanentemente",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/archivos-eliminados/1/eliminar-permanente",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "archivos-eliminados", "1", "eliminar-permanente"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Carpeta Permanentemente",
+					"request": {
+						"method": "DELETE",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/carpetas-eliminadas/1/eliminar-permanente",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "carpetas-eliminadas", "1", "eliminar-permanente"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Log de Errores",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/errores?pagina=1&porPagina=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "errores"],
+							"query": [
+								{"key": "pagina", "value": "1"},
+								{"key": "porPagina", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Resumen de Auditoría (Dashboard)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/auditoria/resumen",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auditoria", "resumen"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🏛️ Entidades",
+			"description": "Gestión de entidades del sistema (Super Admin)",
+			"item": [
+				{
+					"name": "Listar Entidades",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades"]
+						}
+					}
+				},
+				{
+					"name": "Obtener por ID",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener por NIT",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/nit/900000001-1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "nit", "900000001-1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Planes de Entidad",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1/planes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1", "planes"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Resumen (Dashboard)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/resumen",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "resumen"]
+						}
+					}
+				},
+				{
+					"name": "Verificar NIT Disponible",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/verificar-nit/900000001-1?excluirId=1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "verificar-nit", "900000001-1"],
+							"query": [{"key": "excluirId", "value": "1"}]
+						}
+					}
+				},
+				{
+					"name": "Crear Entidad",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Alcaldía Municipal de Prueba\",\n    \"nit\": \"900000001-1\",\n    \"sector\": 1,\n    \"tipoEntidad\": 1,\n    \"direccion\": \"Carrera 1 # 2-3\",\n    \"ciudad\": \"Bogotá\",\n    \"departamento\": \"Cundinamarca\",\n    \"telefono\": \"6018001234\",\n    \"correo\": \"contacto@alcaldia.gov.co\",\n    \"sitioWeb\": \"https://www.alcaldia.gov.co\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/entidades",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Entidad",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Alcaldía Municipal Actualizada\",\n    \"telefono\": \"6018009876\",\n    \"correo\": \"nuevo.correo@alcaldia.gov.co\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1"]
+						}
+					}
+				},
+				{
+					"name": "Extender Plan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"mesesAdicionales\": 6\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1/extender-plan",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1", "extender-plan"]
+						}
+					}
+				},
+				{
+					"name": "Asignar Plan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"planId\": 2,\n    \"fechaInicio\": \"2026-01-01\",\n    \"mesesDuracion\": 12\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1/asignar-plan",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1", "asignar-plan"]
+						}
+					}
+				},
+				{
+					"name": "Desactivar Entidad",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/entidades/1/desactivar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "entidades", "1", "desactivar"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🗂️ Navegación (NavIndex)",
+			"description": "Árbol de navegación y caché en tiempo real",
+			"item": [
+				{
+					"name": "Obtener Estructura Completa",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/navegacion/estructura",
+							"host": ["{{base_url}}"],
+							"path": ["api", "navegacion", "estructura"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Índice de Carpeta",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/navegacion/indice/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "navegacion", "indice", "1"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Nodo Específico",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/navegacion/nodo/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "navegacion", "nodo", "1"]
+						}
+					}
+				},
+				{
+					"name": "Regenerar Estructura (Forzar)",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/navegacion/regenerar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "navegacion", "regenerar"]
+						}
+					}
+				},
+				{
+					"name": "Invalidar Caché",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/navegacion/invalidar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "navegacion", "invalidar"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "✍️ Firma Electrónica (Signature)",
+			"description": "Firma electrónica simple y avanzada según Ley 527/1999",
+			"item": [
+				{
+					"name": "📝 Solicitudes",
+					"item": [
+						{
+							"name": "Listar Solicitudes",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes"]
+								}
+							}
+						},
+						{
+							"name": "Listar con Filtros",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes?estado=PENDIENTE&tipoFirma=SIMPLE",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes"],
+									"query": [
+										{"key": "estado", "value": "PENDIENTE"},
+										{"key": "tipoFirma", "value": "SIMPLE"}
+									]
+								}
+							}
+						},
+						{
+							"name": "Obtener Solicitud por ID",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes/1",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes", "1"]
+								}
+							}
+						},
+						{
+							"name": "Mis Solicitudes Pendientes",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes/pendientes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes", "pendientes"]
+								}
+							}
+						},
+						{
+							"name": "Solicitudes Creadas por Mí",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes/mis-creadas",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes", "mis-creadas"]
+								}
+							}
+						},
+						{
+							"name": "Resumen de Solicitudes (Dashboard)",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes/resumen",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes", "resumen"]
+								}
+							}
+						},
+						{
+							"name": "Crear Solicitud de Firma",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"archivoId\": 1,\n    \"asunto\": \"Aprobación de contrato de prestación de servicios\",\n    \"mensaje\": \"Por favor revisar y firmar el documento adjunto\",\n    \"tipoFirma\": \"SIMPLE\",\n    \"firmantes\": [\n        {\n            \"usuarioId\": 2,\n            \"orden\": 1,\n            \"rol\": \"Revisor\",\n            \"esObligatorio\": true\n        },\n        {\n            \"usuarioId\": 3,\n            \"orden\": 2,\n            \"rol\": \"Aprobador\",\n            \"esObligatorio\": true\n        }\n    ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes"]
+								}
+							}
+						},
+						{
+							"name": "Cancelar Solicitud",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"motivo\": \"Se requiere modificar el documento\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/solicitudes/1/cancelar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "solicitudes", "1", "cancelar"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "🔑 Firma Simple (OTP)",
+					"item": [
+						{
+							"name": "Generar OTP",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"medio\": \"EMAIL\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/firma/1/otp/generar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "firma", "1", "otp", "generar"]
+								}
+							}
+						},
+						{
+							"name": "Validar OTP y Firmar",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"codigo\": \"123456\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/firma/1/otp/validar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "firma", "1", "otp", "validar"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "🔐 Firma Avanzada (Certificado)",
+					"item": [
+						{
+							"name": "Firmar con Certificado Digital",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"contrasena\": \"MiContrasenaSegura123!\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/firma/1/certificado",
+									"host": ["{{base_url}}"],
+									"path": ["api", "firma", "1", "certificado"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "ℹ️ Información",
+					"item": [
+						{
+							"name": "Obtener Info del Documento",
+							"request": {
+								"method": "GET",
+								"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+								"url": {
+									"raw": "{{base_url}}/api/firma/1/documento",
+									"host": ["{{base_url}}"],
+									"path": ["api", "firma", "1", "documento"]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "❌ Rechazar",
+					"item": [
+						{
+							"name": "Rechazar Firma",
+							"request": {
+								"method": "POST",
+								"header": [
+									{"key": "Authorization", "value": "Bearer {{token}}"},
+									{"key": "Content-Type", "value": "application/json"}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"motivo\": \"El documento contiene errores en el artículo 3\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/firma/1/rechazar",
+									"host": ["{{base_url}}"],
+									"path": ["api", "firma", "1", "rechazar"]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "🔐 Certificados Digitales",
+			"description": "Gestión de certificados X.509 para firma avanzada",
+			"item": [
+				{
+					"name": "Obtener Mi Certificado",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/certificados",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certificados"]
+						}
+					}
+				},
+				{
+					"name": "Generar Certificado",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contrasena\": \"MiContrasenaSegura123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/certificados/generar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certificados", "generar"]
+						}
+					}
+				},
+				{
+					"name": "Validar Contraseña de Certificado",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"contrasena\": \"MiContrasenaSegura123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/certificados/validar-contrasena",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certificados", "validar-contrasena"]
+						}
+					}
+				},
+				{
+					"name": "Descargar Certificado Público (.cer)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/certificados/descargar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certificados", "descargar"]
+						}
+					}
+				},
+				{
+					"name": "Revocar Certificado",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"motivo\": \"Renovación por vencimiento\",\n    \"contrasena\": \"MiContrasenaSegura123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/certificados/revocar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "certificados", "revocar"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "✅ Verificación Pública",
+			"description": "Verificación de firmas (endpoint público)",
+			"item": [
+				{
+					"name": "Verificar Firma por Código (PÚBLICO)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/verificar/NUBLU-2026-ABC123",
+							"host": ["{{base_url}}"],
+							"path": ["api", "verificar", "NUBLU-2026-ABC123"]
+						}
+					}
+				},
+				{
+					"name": "Historial de Firmas de Solicitud",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/verificar/historial/1",
+							"host": ["{{base_url}}"],
+							"path": ["api", "verificar", "historial", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "⚙️ Configuración de Firma",
+			"description": "Configuración de firma electrónica por entidad",
+			"item": [
+				{
+					"name": "Obtener Configuración",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/configuracion",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Configuración Completa",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"otpHabilitado\": true,\n    \"certificadoHabilitado\": true,\n    \"minutosExpiracionOtp\": 10,\n    \"maxIntentosOtp\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Configuración OTP",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"habilitado\": true,\n    \"minutosExpiracion\": 10,\n    \"maxIntentos\": 5,\n    \"longitudCodigo\": 6\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/otp",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "otp"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Configuración Certificados",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"habilitado\": true,\n    \"diasVigencia\": 365,\n    \"algoritmoFirma\": \"SHA256\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/certificados",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "certificados"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Configuración Sello",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"incluirSelloVisual\": true,\n    \"posicionX\": 50,\n    \"posicionY\": 750,\n    \"ancho\": 200,\n    \"alto\": 50\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/sello",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "sello"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Configuración Notificaciones",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"notificarPorEmail\": true,\n    \"notificarCreador\": true,\n    \"notificarFirmantes\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/notificaciones",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "notificaciones"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Plantillas de Email",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"asuntoOtp\": \"Código de verificación - {NombreEntidad}\",\n    \"cuerpoOtp\": \"Su código OTP es: {CodigoOTP}. Válido por {MinutosExpiracion} minutos.\",\n    \"asuntoNotificacion\": \"Solicitud de firma pendiente\",\n    \"cuerpoNotificacion\": \"Tiene una solicitud de firma pendiente para el documento: {NombreArchivo}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/plantillas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "plantillas"]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Límites",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{token}}"},
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"maxIntentosOtp\": 5,\n    \"minutosExpiracionOtp\": 10,\n    \"diasExpiracionSolicitud\": 30,\n    \"maxFirmantesPorSolicitud\": 10\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/limites",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "limites"]
+						}
+					}
+				},
+				{
+					"name": "Restaurar Valores por Defecto",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/restaurar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "restaurar"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Variables de Plantilla",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/configuracion/plantillas/variables",
+							"host": ["{{base_url}}"],
+							"path": ["api", "configuracion", "plantillas", "variables"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Catálogos (Datos Estáticos)",
+			"description": "Catálogos del sistema para formularios",
+			"item": [
+				{
+					"name": "Todos los Catálogos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/todos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "todos"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Carpetas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-carpetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-carpetas"]
+						}
+					}
+				},
+				{
+					"name": "Estados de Carpetas",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/estados-carpetas",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "estados-carpetas"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Archivos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-archivos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-archivos"]
+						}
+					}
+				},
+				{
+					"name": "Tipos Documentales",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-documentales",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-documentales"]
+						}
+					}
+				},
+				{
+					"name": "Niveles de Visualización",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/niveles-visualizacion",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "niveles-visualizacion"]
+						}
+					}
+				},
+				{
+					"name": "Soportes de Documento",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/soportes-documento",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "soportes-documento"]
+						}
+					}
+				},
+				{
+					"name": "Frecuencias de Consulta",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/frecuencias-consulta",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "frecuencias-consulta"]
+						}
+					}
+				},
+				{
+					"name": "Orígenes de Documentos",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/origenes-documentos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "origenes-documentos"]
+						}
+					}
+				},
+				{
+					"name": "Disposiciones Finales (TRD)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/disposiciones-finales",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "disposiciones-finales"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Solicitud (PQRSD)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-solicitud",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-solicitud"]
+						}
+					}
+				},
+				{
+					"name": "Estados de Radicado",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/estados-radicado",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "estados-radicado"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Comunicación",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-comunicacion",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-comunicacion"]
+						}
+					}
+				},
+				{
+					"name": "Medios de Recepción",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/medios-recepcion",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "medios-recepcion"]
+						}
+					}
+				},
+				{
+					"name": "Prioridades de Radicado",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/prioridades-radicado",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "prioridades-radicado"]
+						}
+					}
+				},
+				{
+					"name": "Roles",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/roles",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "roles"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Documento de Identidad",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-documento-identidad",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-documento-identidad"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Firma",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-firma",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-firma"]
+						}
+					}
+				},
+				{
+					"name": "Sectores (Entidades)",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/sectores",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "sectores"]
+						}
+					}
+				},
+				{
+					"name": "Tipos de Entidad",
+					"request": {
+						"method": "GET",
+						"header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+						"url": {
+							"raw": "{{base_url}}/api/datosestaticos/tipos-entidad",
+							"host": ["{{base_url}}"],
+							"path": ["api", "datosestaticos", "tipos-entidad"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "❤️ Health Checks",
+			"description": "Endpoints de salud para monitoreo",
+			"item": [
+				{
+					"name": "Gateway Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Gateway Health Detallado",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health/detailed",
+							"host": ["{{base_url}}"],
+							"path": ["health", "detailed"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "🌐 WebSocket (Información)",
+			"description": "Información sobre conexiones WebSocket",
+			"item": [
+				{
+					"name": "📌 WebSocket - Navegación (Info)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"description": "**Endpoint WebSocket:** ws://localhost:5008/ws/navegacion\n\n**Uso en Angular:**\n```typescript\nconst connection = new signalR.HubConnectionBuilder()\n  .withUrl('http://localhost:5008/ws/navegacion', {\n    accessTokenFactory: () => this.authService.getToken()\n  })\n  .build();\n\nconnection.on('EstructuraActualizada', (data) => {\n  console.log('Estructura actualizada:', data);\n});\n```",
+						"url": {
+							"raw": "{{base_url}}/ws/navegacion",
+							"host": ["{{base_url}}"],
+							"path": ["ws", "navegacion"]
+						}
+					}
+				},
+				{
+					"name": "📌 WebSocket - Notificaciones (Info)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"description": "**Endpoint WebSocket:** ws://localhost:5008/ws/notificaciones\n\n**Uso en Angular:**\n```typescript\nconst connection = new signalR.HubConnectionBuilder()\n  .withUrl('http://localhost:5008/ws/notificaciones', {\n    accessTokenFactory: () => this.authService.getToken()\n  })\n  .build();\n\nconnection.on('NuevaNotificacion', (notificacion) => {\n  console.log('Nueva notificación:', notificacion);\n});\n```",
+						"url": {
+							"raw": "{{base_url}}/ws/notificaciones",
+							"host": ["{{base_url}}"],
+							"path": ["ws", "notificaciones"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5008",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

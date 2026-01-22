@@ -55,7 +55,6 @@ C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\ne
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\staticwebassets.development.json
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\NubluSof.2997046D.Up2Date
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\NubluSoft_Signature.dll
 C:\Users\Cristian\Documents\GitHub\NubluSoftApi\NubluSoft_Signature\obj\Debug\net8.0\refint\NubluSoft_Signature.dll
