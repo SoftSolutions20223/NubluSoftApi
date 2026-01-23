@@ -32,10 +32,9 @@ namespace NubluSoft_Core.Models.DTOs
         public long? TRD { get; set; }
 
         /// <summary>
-        /// Oficina que crea la carpeta (para validar permisos TRD)
+        /// Oficina que crea la carpeta (opcional, informativo)
         /// </summary>
-        [Required(ErrorMessage = "La oficina es requerida")]
-        public long Oficina { get; set; }
+        public long? Oficina { get; set; }
 
         public long? NivelVisualizacion { get; set; }
 

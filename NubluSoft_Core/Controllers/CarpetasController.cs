@@ -104,8 +104,15 @@ namespace NubluSoft_Core.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CrearCarpetaRequest request)
         {
+            _logger.LogInformation("Crear carpeta - Request recibido: Nombre={Nombre}, TipoCarpeta={Tipo}, CarpetaPadre={Padre}",
+                request?.Nombre, request?.TipoCarpeta, request?.CarpetaPadre);
+
             if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                _logger.LogWarning("Crear carpeta - ModelState inválido: {Errors}", string.Join(", ", errors));
                 return BadRequest(ModelState);
+            }
 
             var entidadId = User.GetEntidadId();
             var usuarioId = User.GetUserId();
@@ -116,7 +123,10 @@ namespace NubluSoft_Core.Controllers
             var resultado = await _service.CrearAsync(entidadId, usuarioId, request);
 
             if (!resultado.Exito)
+            {
+                _logger.LogWarning("Crear carpeta - Error de PostgreSQL: {Mensaje}", resultado.Mensaje);
                 return BadRequest(new { resultado.Mensaje });
+            }
 
             var carpeta = await _service.ObtenerPorIdAsync(resultado.CarpetaCod!.Value);
             return CreatedAtAction(nameof(GetById), new { id = resultado.CarpetaCod }, carpeta);

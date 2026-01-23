@@ -31,7 +31,7 @@ namespace NubluSoft_Storage.Controllers
         /// Sube un archivo
         /// </summary>
         [HttpPost("upload")]
-        [RequestSizeLimit(524288000)] // 500 MB
+        [RequestSizeLimit(2147483648)] // 2 GB
         public async Task<IActionResult> Upload(
             IFormFile file,
             [FromForm] long carpetaId,
@@ -73,7 +73,7 @@ namespace NubluSoft_Storage.Controllers
         /// Sube múltiples archivos
         /// </summary>
         [HttpPost("upload/multiple")]
-        [RequestSizeLimit(1073741824)] // 1 GB total
+        [RequestSizeLimit(4294967296)] // 4 GB total
         public async Task<IActionResult> UploadMultiple(
             IFormFileCollection files,
             [FromForm] long carpetaId,
@@ -226,7 +226,7 @@ namespace NubluSoft_Storage.Controllers
         /// Crea nueva versión de un archivo
         /// </summary>
         [HttpPost("version")]
-        [RequestSizeLimit(524288000)] // 500 MB
+        [RequestSizeLimit(2147483648)] // 2 GB
         public async Task<IActionResult> CreateVersion(
             IFormFile file,
             [FromForm] long archivoId,

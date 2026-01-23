@@ -17,7 +17,12 @@
       "Bash(gsutil cors set:*)",
       "Bash(where:*)",
       "WebSearch",
-      "Bash(npx ng build:*)"
+      "Bash(npx ng build:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nSeguridad: Remover credenciales GCS del repositorio\n\n- Agregar .gitignore para proteger archivos sensibles\n- Remover gcs-credentials.json del tracking de git\n- Las credenciales fueron rotadas en Google Cloud\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

@@ -30,7 +30,7 @@ namespace NubluSoft_Core.Models.DTOs
         /// Tamaño del archivo en bytes
         /// </summary>
         [Required(ErrorMessage = "El tamaño es requerido")]
-        [Range(1, 524288000, ErrorMessage = "El tamaño debe ser entre 1 byte y 500 MB")]
+        [Range(1, 2147483648, ErrorMessage = "El tamaño debe ser entre 1 byte y 2 GB")]
         public long TamanoBytes { get; set; }
 
         /// <summary>

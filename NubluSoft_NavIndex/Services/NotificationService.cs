@@ -44,21 +44,17 @@ namespace NubluSoft_NavIndex.Services
                     _logger.LogDebug("Estructura regenerada exitosamente para entidad {EntidadId}", entidadId);
                 }
 
-                // 2. Si el cambio es en un expediente/genérica hijo directo,
-                //    también invalidar el índice del padre (se regenerará bajo demanda)
-                if (cambio.TipoCarpeta >= 3 && cambio.CarpetaPadre.HasValue)
-                {
-                    await navIndexService.InvalidarIndiceCacheAsync(entidadId, cambio.CarpetaPadre.Value);
-                }
+                // Nota: Ya no se usa caché para índices de carpetas individuales,
+                // siempre se consultan desde PostgreSQL para evitar problemas de sincronización
 
-                // 3. Obtener el nodo actualizado para enviar por WebSocket
+                // 2. Obtener el nodo actualizado para enviar por WebSocket
                 NodoNavegacion? nodoActualizado = null;
                 if (cambio.TipoCambio != TiposCambio.Eliminado)
                 {
                     nodoActualizado = await navIndexService.ObtenerNodoAsync(cambio.CarpetaId);
                 }
 
-                // 4. Crear mensaje de actualización
+                // 3. Crear mensaje de actualización
                 var mensaje = new MensajeActualizacion
                 {
                     Tipo = TiposMensaje.NodoActualizado,
@@ -71,7 +67,7 @@ namespace NubluSoft_NavIndex.Services
                     Timestamp = DateTime.UtcNow
                 };
 
-                // 5. Notificar a todos los handlers (WebSocket hub)
+                // 4. Notificar a todos los handlers (WebSocket hub)
                 foreach (var handler in _handlers)
                 {
                     try

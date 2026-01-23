@@ -35,7 +35,7 @@
         /// <summary>
         /// Tamaño máximo de archivo permitido (MB)
         /// </summary>
-        public int MaxFileSizeMB { get; set; } = 500;
+        public int MaxFileSizeMB { get; set; } = 2048;
 
         /// <summary>
         /// Usar emulador local (solo desarrollo)

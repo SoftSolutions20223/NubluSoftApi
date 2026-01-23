@@ -7,7 +7,7 @@ using NubluSoft_Core.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ==================== CONFIGURACIÓN ====================
+// ==================== CONFIGURACIï¿½N ====================
 
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
@@ -16,7 +16,7 @@ builder.Services.Configure<ServiceSettings>(
 
 // ==================== SERVICIOS ====================
 
-// Conexión a PostgreSQL
+// Conexiï¿½n a PostgreSQL
 builder.Services.AddSingleton<IPostgresConnectionFactory, PostgresConnectionFactory>();
 
 // Cliente HTTP para NubluSoft_Storage
@@ -43,7 +43,7 @@ builder.Services.AddScoped<IEntidadesService, EntidadesService>();
 // Servicio de notificaciones
 builder.Services.AddScoped<INotificacionService, NotificacionService>();
 
-// Servicio para enviar notificaciones vía Hub (Singleton porque IHubContext es thread-safe)
+// Servicio para enviar notificaciones vï¿½a Hub (Singleton porque IHubContext es thread-safe)
 builder.Services.AddSingleton<INotificacionesHubService, NotificacionesHubService>();
 
 // Background service para escuchar PostgreSQL NOTIFY
@@ -58,9 +58,9 @@ builder.Services.AddSignalR(options =>
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 });
 
-// ==================== AUTENTICACIÓN ====================
+// ==================== AUTENTICACIï¿½N ====================
 
-// Autenticación JWT
+// Autenticaciï¿½n JWT
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
@@ -68,7 +68,12 @@ builder.Services.AddAuthorization();
 builder.Services.AddCoreCors(builder.Configuration);
 
 // Controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -78,7 +83,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "NubluSoft Core API",
         Version = "v1",
-        Description = "Microservicio de lógica de negocio"
+        Description = "Microservicio de lï¿½gica de negocio"
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -148,7 +153,7 @@ try
     await conn.OpenAsync();
     logger.LogInformation("[OK] PostgreSQL conectado");
 
-    // Verificar configuración de Storage
+    // Verificar configuraciï¿½n de Storage
     var storageUrl = builder.Configuration["Services:Storage"];
     logger.LogInformation("[OK] Storage URL configurada: {Url}", storageUrl);
 

@@ -102,33 +102,21 @@ namespace NubluSoft_NavIndex.Services
         {
             try
             {
-                // 1. Intentar obtener de caché
-                var cached = await _cacheService.ObtenerIndiceComprimidoAsync(entidadId, carpetaId);
-                if (cached != null)
-                {
-                    return cached;
-                }
-
-                // 2. Generar desde PostgreSQL
+                // Siempre consultar desde PostgreSQL (sin caché)
+                // Esto evita problemas de sincronización cuando se crean/modifican carpetas
                 var indice = await GenerarIndiceDesdeDbAsync(carpetaId);
                 if (indice == null)
                 {
                     return null;
                 }
 
-                // 3. Serializar y comprimir
                 var json = JsonConvert.SerializeObject(indice, new JsonSerializerSettings
                 {
                     NullValueHandling = NullValueHandling.Ignore,
                     DateFormatString = "yyyy-MM-ddTHH:mm:ss"
                 });
 
-                var comprimido = ComprimirGzip(json);
-
-                // 4. Guardar en caché
-                await _cacheService.GuardarIndiceComprimidoAsync(entidadId, carpetaId, comprimido);
-
-                return comprimido;
+                return ComprimirGzip(json);
             }
             catch (Exception ex)
             {
@@ -477,7 +465,7 @@ namespace NubluSoft_NavIndex.Services
                     a.""Formato"",
                     a.""NumeroHojas"",
                     a.""Duracion"",
-                    a.""Tamano"",
+                    a.""Tamaño"" AS ""Tamano"",
                     a.""Estado"",
                     a.""Indice"",
                     ta.""Nombre"" AS ""NombreTipoArchivo""

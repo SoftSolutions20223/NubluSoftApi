@@ -2057,9 +2057,9 @@ CREATE FUNCTION documentos."F_NotifyNavIndex"() RETURNS trigger
           );
       END IF;
 
-      IF v_es_estructura THEN
-          PERFORM pg_notify('navindex_cambios', v_payload::TEXT);
-      END IF;
+      -- Siempre emitir NOTIFY para cualquier cambio en carpetas
+      -- (antes solo emitía para Series, Subseries y sus hijos directos)
+      PERFORM pg_notify('navindex_cambios', v_payload::TEXT);
 
       IF TG_OP = 'DELETE' THEN
           RETURN OLD;
@@ -2074,7 +2074,7 @@ CREATE FUNCTION documentos."F_NotifyNavIndex"() RETURNS trigger
 -- Name: FUNCTION "F_NotifyNavIndex"(); Type: COMMENT; Schema: documentos; Owner: -
 --
 
-COMMENT ON FUNCTION documentos."F_NotifyNavIndex"() IS 'Emite NOTIFY cuando cambian carpetas que afectan la estructura documental (Series, Subseries, y sus hijos directos)';
+COMMENT ON FUNCTION documentos."F_NotifyNavIndex"() IS 'Emite NOTIFY para cualquier cambio en carpetas, permitiendo actualizar el caché de NavIndex';
 
 
 --
