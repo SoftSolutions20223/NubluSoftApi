@@ -7,7 +7,13 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ==================== CONFIGURACIÓN ====================
+// Permitir operaciones sÃ­ncronas (requerido por ZipArchive cuando escribe a Response.Body)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.AllowSynchronousIO = true;
+});
+
+// ==================== CONFIGURACIÃ“N ====================
 
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection(JwtSettings.SectionName));
@@ -23,7 +29,7 @@ builder.Services.AddSingleton<IPostgresConnectionFactory, PostgresConnectionFact
 builder.Services.AddSingleton<IGcsStorageService, GcsStorageService>();
 builder.Services.AddScoped<IStorageService, StorageService>();
 
-// JWT Authentication (idéntica al Gateway)
+// JWT Authentication (idï¿½ntica al Gateway)
 var jwtSettings = builder.Configuration.GetSection(JwtSettings.SectionName).Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings no configurado");
 
@@ -56,7 +62,7 @@ builder.Services.AddAuthentication(options =>
         {
             var logger = context.HttpContext.RequestServices
                 .GetRequiredService<ILogger<Program>>();
-            logger.LogWarning("Autenticación fallida: {Message}", context.Exception.Message);
+            logger.LogWarning("Autenticaciï¿½n fallida: {Message}", context.Exception.Message);
             return Task.CompletedTask;
         }
     };

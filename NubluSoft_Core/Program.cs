@@ -19,6 +19,9 @@ builder.Services.Configure<ServiceSettings>(
 // Conexi�n a PostgreSQL
 builder.Services.AddSingleton<IPostgresConnectionFactory, PostgresConnectionFactory>();
 
+// HttpContextAccessor para acceder al token JWT en servicios
+builder.Services.AddHttpContextAccessor();
+
 // Cliente HTTP para NubluSoft_Storage
 builder.Services.AddStorageClient(builder.Configuration);
 

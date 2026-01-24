@@ -112,4 +112,28 @@ namespace NubluSoft_Core.Models.DTOs
         public DateTime? FechaHasta { get; set; }
         public bool SoloActivos { get; set; } = true;
     }
+
+    /// <summary>
+    /// DTO para mover un archivo a otra carpeta
+    /// </summary>
+    public class MoverArchivoRequest
+    {
+        [Required(ErrorMessage = "La carpeta destino es requerida")]
+        public long CarpetaDestino { get; set; }
+    }
+
+    /// <summary>
+    /// DTO para copiar un archivo a otra carpeta
+    /// </summary>
+    public class CopiarArchivoRequest
+    {
+        [Required(ErrorMessage = "La carpeta destino es requerida")]
+        public long CarpetaDestino { get; set; }
+
+        /// <summary>
+        /// Nombre opcional para la copia. Si no se especifica, usa el nombre original.
+        /// </summary>
+        [MaxLength(200)]
+        public string? NuevoNombre { get; set; }
+    }
 }

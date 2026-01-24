@@ -7,14 +7,26 @@ namespace NubluSoft_Core.Services
     public class CarpetasService : ICarpetasService
     {
         private readonly IPostgresConnectionFactory _connectionFactory;
+        private readonly IStorageClientService _storageClient;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<CarpetasService> _logger;
 
         public CarpetasService(
             IPostgresConnectionFactory connectionFactory,
+            IStorageClientService storageClient,
+            IHttpContextAccessor httpContextAccessor,
             ILogger<CarpetasService> logger)
         {
             _connectionFactory = connectionFactory;
+            _storageClient = storageClient;
+            _httpContextAccessor = httpContextAccessor;
             _logger = logger;
+        }
+
+        private string? GetAuthToken()
+        {
+            var authHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].FirstOrDefault();
+            return authHeader?.Replace("Bearer ", "");
         }
 
         // ==================== CONSULTAS ====================
@@ -386,17 +398,66 @@ namespace NubluSoft_Core.Services
 
         public async Task<ResultadoCarpeta> EliminarAsync(long carpetaId, long usuarioId)
         {
-            const string sql = @"SELECT * FROM documentos.""F_EliminarCarpeta""(@CarpetaId, @UsuarioId)";
+            // 1. Obtener rutas GCS de todos los archivos antes del soft delete
+            const string sqlArchivos = @"
+                WITH RECURSIVE carpetas_recursivas AS (
+                    SELECT ""Cod"" FROM documentos.""Carpetas""
+                    WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true
+                    UNION ALL
+                    SELECT c.""Cod"" FROM documentos.""Carpetas"" c
+                    INNER JOIN carpetas_recursivas cr ON c.""CarpetaPadre"" = cr.""Cod""
+                    WHERE c.""Estado"" = true
+                )
+                SELECT ""Ruta"" FROM documentos.""Archivos""
+                WHERE ""Carpeta"" IN (SELECT ""Cod"" FROM carpetas_recursivas)
+                  AND ""Estado"" = true AND ""Ruta"" IS NOT NULL";
+
+            const string sqlEliminar = @"SELECT * FROM documentos.""F_EliminarCarpeta""(@CarpetaId, @UsuarioId)";
 
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
 
-                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoCarpeta>(sql,
+                // Obtener rutas GCS antes de eliminar
+                var rutasGcs = (await connection.QueryAsync<string>(sqlArchivos,
+                    new { CarpetaId = carpetaId })).ToList();
+
+                _logger.LogInformation("Eliminando carpeta {CarpetaId} con {Count} archivos en GCS",
+                    carpetaId, rutasGcs.Count);
+
+                // 2. Ejecutar soft delete en BD
+                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoCarpeta>(sqlEliminar,
                     new { CarpetaId = carpetaId, UsuarioId = usuarioId });
 
-                return resultado ?? new ResultadoCarpeta { Exito = false, Mensaje = "Error al eliminar la carpeta" };
+                if (resultado?.Exito != true)
+                {
+                    return resultado ?? new ResultadoCarpeta { Exito = false, Mensaje = "Error al eliminar la carpeta" };
+                }
+
+                // 3. Eliminar archivos de GCS (en paralelo, sin bloquear)
+                if (rutasGcs.Count > 0)
+                {
+                    var authToken = GetAuthToken();
+                    _ = Task.Run(async () =>
+                    {
+                        foreach (var ruta in rutasGcs)
+                        {
+                            try
+                            {
+                                await _storageClient.DeleteFileAsync(ruta, authToken);
+                                _logger.LogDebug("Archivo eliminado de GCS: {Ruta}", ruta);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "No se pudo eliminar archivo de GCS: {Ruta}", ruta);
+                            }
+                        }
+                        _logger.LogInformation("Eliminación de {Count} archivos de GCS completada", rutasGcs.Count);
+                    });
+                }
+
+                return resultado;
             }
             catch (Exception ex)
             {
@@ -428,23 +489,121 @@ namespace NubluSoft_Core.Services
 
         public async Task<ResultadoCarpeta> CopiarAsync(long carpetaId, long usuarioId, CopiarCarpetaRequest request)
         {
-            const string sql = @"SELECT * FROM documentos.""F_CopiarCarpeta""(@CarpetaId, @CarpetaDestino, @NuevoNombre, @IncluirArchivos, @UsuarioId)";
+            const string sqlCopiar = @"SELECT * FROM documentos.""F_CopiarCarpeta""(@CarpetaId, @CarpetaDestino, @UsuarioId, @NuevoNombre, @IncluirArchivos)";
+
+            // Obtener archivos copiados (los que están en la nueva estructura)
+            const string sqlArchivosCopiados = @"
+                WITH RECURSIVE carpetas_recursivas AS (
+                    SELECT ""Cod"" FROM documentos.""Carpetas""
+                    WHERE ""Cod"" = @NuevaCarpetaCod AND ""Estado"" = true
+                    UNION ALL
+                    SELECT c.""Cod"" FROM documentos.""Carpetas"" c
+                    INNER JOIN carpetas_recursivas cr ON c.""CarpetaPadre"" = cr.""Cod""
+                    WHERE c.""Estado"" = true
+                )
+                SELECT ""Cod"", ""Ruta"", ""Nombre"", ""Formato""
+                FROM documentos.""Archivos""
+                WHERE ""Carpeta"" IN (SELECT ""Cod"" FROM carpetas_recursivas)
+                  AND ""Estado"" = true AND ""Ruta"" IS NOT NULL";
+
+            const string sqlActualizarRuta = @"
+                UPDATE documentos.""Archivos""
+                SET ""Ruta"" = @NuevaRuta, ""FechaModificacion"" = @Fecha
+                WHERE ""Cod"" = @ArchivoCod";
 
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
 
-                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoCarpeta>(sql,
-                    new { CarpetaId = carpetaId, request.CarpetaDestino, request.NuevoNombre, request.IncluirArchivos, UsuarioId = usuarioId });
+                // 1. Copiar estructura en BD (archivos quedan con misma ruta GCS)
+                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoCopiar>(sqlCopiar,
+                    new { CarpetaId = carpetaId, request.CarpetaDestino, UsuarioId = usuarioId, request.NuevoNombre, request.IncluirArchivos });
 
-                return resultado ?? new ResultadoCarpeta { Exito = false, Mensaje = "Error al copiar la carpeta" };
+                if (resultado?.Exito != true || resultado.NuevaCarpetaCod == null)
+                {
+                    return new ResultadoCarpeta
+                    {
+                        Exito = false,
+                        Mensaje = resultado?.Mensaje ?? "Error al copiar la carpeta"
+                    };
+                }
+
+                _logger.LogInformation("Carpeta copiada en BD. Nueva carpeta: {NuevaCod}, Archivos: {Count}",
+                    resultado.NuevaCarpetaCod, resultado.ArchivosCopiados);
+
+                // 2. Si hay archivos copiados, duplicarlos en GCS con nuevas rutas
+                if (resultado.ArchivosCopiados > 0)
+                {
+                    var archivosCopiados = (await connection.QueryAsync<ArchivoCopiado>(sqlArchivosCopiados,
+                        new { NuevaCarpetaCod = resultado.NuevaCarpetaCod })).ToList();
+
+                    var authToken = GetAuthToken();
+                    var timestamp = DateTime.UtcNow.Ticks;
+
+                    foreach (var archivo in archivosCopiados)
+                    {
+                        try
+                        {
+                            // Generar nueva ruta GCS (agregar sufijo único)
+                            var extension = Path.GetExtension(archivo.Ruta);
+                            var basePath = archivo.Ruta[..^extension.Length];
+                            var nuevaRuta = $"{basePath}_copy_{timestamp}_{archivo.Cod}{extension}";
+
+                            // Copiar en GCS
+                            var copiado = await _storageClient.CopyFileAsync(archivo.Ruta, nuevaRuta, authToken);
+
+                            if (copiado)
+                            {
+                                // Actualizar ruta en BD
+                                await connection.ExecuteAsync(sqlActualizarRuta,
+                                    new { NuevaRuta = nuevaRuta, ArchivoCod = archivo.Cod, Fecha = DateTime.Now });
+
+                                _logger.LogDebug("Archivo copiado en GCS: {Original} -> {Nuevo}", archivo.Ruta, nuevaRuta);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("No se pudo copiar archivo en GCS: {Ruta}", archivo.Ruta);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Error copiando archivo {Cod} en GCS", archivo.Cod);
+                        }
+                    }
+                }
+
+                return new ResultadoCarpeta
+                {
+                    Exito = true,
+                    CarpetaCod = resultado.NuevaCarpetaCod,
+                    Mensaje = resultado.Mensaje
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error copiando carpeta {CarpetaId}", carpetaId);
                 return new ResultadoCarpeta { Exito = false, Mensaje = "Error al copiar la carpeta: " + ex.Message };
             }
+        }
+
+        // DTO interno para resultado de F_CopiarCarpeta
+        private class ResultadoCopiar
+        {
+            public bool Exito { get; set; }
+            public long? NuevaCarpetaCod { get; set; }
+            public int CarpetasCopiadas { get; set; }
+            public int ArchivosCopiados { get; set; }
+            public string? Mensaje { get; set; }
+        }
+
+        // DTO interno para archivos copiados
+        private class ArchivoCopiado
+        {
+            public long Cod { get; set; }
+            public string Ruta { get; set; } = string.Empty;
+            public string Nombre { get; set; } = string.Empty;
+            public string? Formato { get; set; }
         }
 
         // ==================== OPERACIONES DE EXPEDIENTE ====================

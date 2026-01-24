@@ -26,6 +26,9 @@ namespace NubluSoft.Middleware
         // Mapeo de rutas a microservicios
         private static readonly Dictionary<string, string> RouteMapping = new()
 {
+    // NubluSoft_Storage (Puerto 5002)
+    { "/api/storage", "StorageService" },
+
     // NubluSoft_Core (Puerto 5001)
     { "/api/usuarios", "CoreService" },
     { "/api/carpetas", "CoreService" },

@@ -262,24 +262,24 @@ namespace NubluSoft_Storage.Services
         {
             const string sql = @"
                 WITH RECURSIVE carpetas_recursivas AS (
-                    SELECT ""Cod"", ""Nombre"", ""CarpetaPadre"", ""Nombre"" as ruta
+                    SELECT ""Cod"", ""Nombre"", ""CarpetaPadre"", CAST(""Nombre"" AS text) as ruta
                     FROM documentos.""Carpetas""
                     WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true
-                    
+
                     UNION ALL
-                    
-                    SELECT c.""Cod"", c.""Nombre"", c.""CarpetaPadre"", 
+
+                    SELECT c.""Cod"", c.""Nombre"", c.""CarpetaPadre"",
                            cr.ruta || '/' || c.""Nombre""
                     FROM documentos.""Carpetas"" c
                     INNER JOIN carpetas_recursivas cr ON c.""CarpetaPadre"" = cr.""Cod""
                     WHERE c.""Estado"" = true
                 )
-                SELECT 
+                SELECT
                     a.""Cod"" as ArchivoId,
                     a.""Nombre"",
                     cr.ruta || '/' || a.""Nombre"" as RutaRelativa,
                     a.""Ruta"" as GcsObjectName,
-                    COALESCE(a.""Tamano"", 0) as Tamano,
+                    CASE WHEN a.""Tamaño"" IS NULL OR a.""Tamaño"" = '' THEN 0 ELSE a.""Tamaño""::bigint END as Tamano,
                     a.""ContentType""
                 FROM documentos.""Archivos"" a
                 INNER JOIN carpetas_recursivas cr ON a.""Carpeta"" = cr.""Cod""

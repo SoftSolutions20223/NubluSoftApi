@@ -15,6 +15,8 @@ namespace NubluSoft_Core.Services
         Task<ResultadoArchivo> CrearAsync(long usuarioId, CrearArchivoRequest request);
         Task<(bool Success, string? Error)> ActualizarAsync(long archivoId, long usuarioId, ActualizarArchivoRequest request);
         Task<ResultadoArchivo> EliminarAsync(long archivoId, long usuarioId);
+        Task<ResultadoArchivo> MoverAsync(long archivoId, long usuarioId, long carpetaDestinoId);
+        Task<ResultadoArchivo> CopiarAsync(long archivoId, long usuarioId, long carpetaDestinoId, string? nuevoNombre = null);
 
         // Versionamiento
         Task<ResultadoArchivo> CrearVersionAsync(long archivoId, long usuarioId, CrearVersionRequest request);

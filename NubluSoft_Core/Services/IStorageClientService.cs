@@ -48,6 +48,15 @@
             string objectName,
             string? authToken = null,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Copia un archivo dentro de GCS
+        /// </summary>
+        Task<bool> CopyFileAsync(
+            string sourceObjectName,
+            string destinationObjectName,
+            string? authToken = null,
+            CancellationToken cancellationToken = default);
     }
 
     // ==================== DTOs ====================

@@ -385,7 +385,7 @@ namespace NubluSoft_NavIndex.Services
 
         /// <summary>
         /// Genera el índice (contenido) de una carpeta
-        /// Incluye subcarpetas y archivos recursivamente
+        /// Incluye solo subcarpetas hijas directas y archivos de la carpeta actual
         /// </summary>
         private async Task<IndiceContenido?> GenerarIndiceDesdeDbAsync(long carpetaId)
         {
@@ -398,66 +398,32 @@ namespace NubluSoft_NavIndex.Services
                 FROM documentos.""Carpetas""
                 WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true";
 
+            // Solo hijas directas, sin recursividad
             const string sqlSubcarpetas = @"
-                WITH RECURSIVE subcarpetas AS (
-                    SELECT 
-                        c.""Cod"",
-                        c.""Nombre"",
-                        c.""CodSerie"",
-                        c.""CodSubSerie"",
-                        c.""Estado"",
-                        c.""CarpetaPadre"",
-                        c.""FechaCreacion"",
-                        c.""SerieRaiz"",
-                        c.""NivelVisualizacion"",
-                        c.""TipoCarpeta"",
-                        c.""Delegado"",
-                        c.""TRD""
-                    FROM documentos.""Carpetas"" c
-                    WHERE c.""CarpetaPadre"" = @CarpetaId AND c.""Estado"" = true
-                    
-                    UNION ALL
-                    
-                    SELECT 
-                        c.""Cod"",
-                        c.""Nombre"",
-                        c.""CodSerie"",
-                        c.""CodSubSerie"",
-                        c.""Estado"",
-                        c.""CarpetaPadre"",
-                        c.""FechaCreacion"",
-                        c.""SerieRaiz"",
-                        c.""NivelVisualizacion"",
-                        c.""TipoCarpeta"",
-                        c.""Delegado"",
-                        c.""TRD""
-                    FROM documentos.""Carpetas"" c
-                    INNER JOIN subcarpetas s ON c.""CarpetaPadre"" = s.""Cod""
-                    WHERE c.""Estado"" = true
-                )
-                SELECT 
-                    s.*,
+                SELECT
+                    c.""Cod"",
+                    c.""Nombre"",
+                    c.""CodSerie"",
+                    c.""CodSubSerie"",
+                    c.""Estado"",
+                    c.""CarpetaPadre"",
+                    c.""FechaCreacion"",
+                    c.""SerieRaiz"",
+                    c.""NivelVisualizacion"",
+                    c.""TipoCarpeta"",
+                    c.""Delegado"",
+                    c.""TRD"",
                     t.""Codigo"" AS ""CodigoTRD"",
                     tc.""Nombre"" AS ""NombreTipoCarpeta""
-                FROM subcarpetas s
-                LEFT JOIN documentos.""Tablas_Retencion_Documental"" t ON s.""TRD"" = t.""Cod""
-                LEFT JOIN documentos.""Tipos_Carpetas"" tc ON s.""TipoCarpeta"" = tc.""Cod""
-                ORDER BY s.""TipoCarpeta"", s.""Nombre""";
+                FROM documentos.""Carpetas"" c
+                LEFT JOIN documentos.""Tablas_Retencion_Documental"" t ON c.""TRD"" = t.""Cod""
+                LEFT JOIN documentos.""Tipos_Carpetas"" tc ON c.""TipoCarpeta"" = tc.""Cod""
+                WHERE c.""CarpetaPadre"" = @CarpetaId AND c.""Estado"" = true
+                ORDER BY c.""TipoCarpeta"", c.""Nombre""";
 
+            // Solo archivos de la carpeta actual, sin recursividad
             const string sqlArchivos = @"
-                WITH RECURSIVE todas_carpetas AS (
-                    SELECT ""Cod""
-                    FROM documentos.""Carpetas""
-                    WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true
-                    
-                    UNION ALL
-                    
-                    SELECT c.""Cod""
-                    FROM documentos.""Carpetas"" c
-                    INNER JOIN todas_carpetas tc ON c.""CarpetaPadre"" = tc.""Cod""
-                    WHERE c.""Estado"" = true
-                )
-                SELECT 
+                SELECT
                     a.""Cod"",
                     a.""Nombre"",
                     a.""Carpeta"",
@@ -470,10 +436,9 @@ namespace NubluSoft_NavIndex.Services
                     a.""Indice"",
                     ta.""Nombre"" AS ""NombreTipoArchivo""
                 FROM documentos.""Archivos"" a
-                INNER JOIN todas_carpetas tc ON a.""Carpeta"" = tc.""Cod""
                 LEFT JOIN documentos.""Tipos_Archivos"" ta ON a.""TipoArchivo"" = ta.""Cod""
-                WHERE a.""Estado"" = true
-                ORDER BY a.""Carpeta"", a.""Indice"", a.""Nombre""";
+                WHERE a.""Carpeta"" = @CarpetaId AND a.""Estado"" = true
+                ORDER BY a.""Indice"", a.""Nombre""";
 
             try
             {

@@ -8,16 +8,25 @@ namespace NubluSoft_Core.Services
     {
         private readonly IPostgresConnectionFactory _connectionFactory;
         private readonly IStorageClientService _storageClient;
+        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ILogger<ArchivosService> _logger;
 
         public ArchivosService(
             IPostgresConnectionFactory connectionFactory,
             IStorageClientService storageClient,
+            IHttpContextAccessor httpContextAccessor,
             ILogger<ArchivosService> logger)
         {
             _connectionFactory = connectionFactory;
             _storageClient = storageClient;
+            _httpContextAccessor = httpContextAccessor;
             _logger = logger;
+        }
+
+        private string? GetAuthToken()
+        {
+            var authHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].FirstOrDefault();
+            return authHeader?.Replace("Bearer ", "");
         }
 
         // ==================== CONSULTAS ====================
@@ -325,22 +334,230 @@ namespace NubluSoft_Core.Services
 
         public async Task<ResultadoArchivo> EliminarAsync(long archivoId, long usuarioId)
         {
-            const string sql = @"SELECT * FROM documentos.""F_EliminarArchivo""(@ArchivoId, @UsuarioId)";
+            const string sqlRuta = @"SELECT ""Ruta"" FROM documentos.""Archivos"" WHERE ""Cod"" = @ArchivoId AND ""Estado"" = true";
+            const string sqlEliminar = @"SELECT * FROM documentos.""F_EliminarArchivo""(@ArchivoId, @UsuarioId)";
 
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
 
-                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoArchivo>(sql,
+                // 1. Obtener ruta GCS antes del soft delete
+                var rutaGcs = await connection.QueryFirstOrDefaultAsync<string>(sqlRuta,
+                    new { ArchivoId = archivoId });
+
+                // 2. Ejecutar soft delete en BD
+                var resultado = await connection.QueryFirstOrDefaultAsync<ResultadoArchivo>(sqlEliminar,
                     new { ArchivoId = archivoId, UsuarioId = usuarioId });
 
-                return resultado ?? new ResultadoArchivo { Exito = false, Mensaje = "Error al eliminar el archivo" };
+                if (resultado?.Exito != true)
+                {
+                    return resultado ?? new ResultadoArchivo { Exito = false, Mensaje = "Error al eliminar el archivo" };
+                }
+
+                // 3. Eliminar de GCS (en background, sin bloquear)
+                if (!string.IsNullOrEmpty(rutaGcs))
+                {
+                    var authToken = GetAuthToken();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _storageClient.DeleteFileAsync(rutaGcs, authToken);
+                            _logger.LogInformation("Archivo eliminado de GCS: {Ruta}", rutaGcs);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "No se pudo eliminar archivo de GCS: {Ruta}", rutaGcs);
+                        }
+                    });
+                }
+
+                return resultado;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error eliminando archivo {ArchivoId}", archivoId);
                 return new ResultadoArchivo { Exito = false, Mensaje = "Error al eliminar el archivo: " + ex.Message };
+            }
+        }
+
+        public async Task<ResultadoArchivo> MoverAsync(long archivoId, long usuarioId, long carpetaDestinoId)
+        {
+            const string sqlValidar = @"
+                SELECT c.""Cod"", c.""TipoCarpeta"", c.""EstadoCarpeta""
+                FROM documentos.""Carpetas"" c
+                WHERE c.""Cod"" = @CarpetaId AND c.""Estado"" = true";
+
+            const string sqlMover = @"
+                UPDATE documentos.""Archivos""
+                SET ""Carpeta"" = @CarpetaDestino, ""FechaModificacion"" = NOW()
+                WHERE ""Cod"" = @ArchivoId AND ""Estado"" = true
+                RETURNING ""Cod""";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                // 1. Validar carpeta destino
+                var carpeta = await connection.QueryFirstOrDefaultAsync<dynamic>(sqlValidar,
+                    new { CarpetaId = carpetaDestinoId });
+
+                if (carpeta == null)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Carpeta destino no encontrada" };
+                }
+
+                // Solo expedientes (3) y genéricas (4) pueden contener archivos
+                if (carpeta.TipoCarpeta != 3 && carpeta.TipoCarpeta != 4)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Solo se pueden mover archivos a Expedientes o Carpetas Genéricas" };
+                }
+
+                if (carpeta.EstadoCarpeta == 2)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "La carpeta destino está cerrada" };
+                }
+
+                // 2. Mover archivo
+                var moved = await connection.QueryFirstOrDefaultAsync<long?>(sqlMover,
+                    new { ArchivoId = archivoId, CarpetaDestino = carpetaDestinoId });
+
+                if (moved == null)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Archivo no encontrado" };
+                }
+
+                _logger.LogInformation("Archivo {ArchivoId} movido a carpeta {CarpetaId} por usuario {UsuarioId}",
+                    archivoId, carpetaDestinoId, usuarioId);
+
+                return new ResultadoArchivo
+                {
+                    Exito = true,
+                    ArchivoCod = archivoId,
+                    Mensaje = "Archivo movido exitosamente"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error moviendo archivo {ArchivoId}", archivoId);
+                return new ResultadoArchivo { Exito = false, Mensaje = "Error al mover el archivo: " + ex.Message };
+            }
+        }
+
+        public async Task<ResultadoArchivo> CopiarAsync(long archivoId, long usuarioId, long carpetaDestinoId, string? nuevoNombre = null)
+        {
+            const string sqlObtener = @"
+                SELECT ""Cod"", ""Nombre"", ""Ruta"", ""Descripcion"", ""Hash"", ""Tamaño"",
+                       ""ContentType"", ""TipoArchivo"", ""TipoDocumental"", ""OrigenDocumento"",
+                       ""PaginaInicio"", ""PaginaFin"", ""FechaDocumento"", ""CodigoDocumento"",
+                       ""Carpeta""
+                FROM documentos.""Archivos""
+                WHERE ""Cod"" = @ArchivoId AND ""Estado"" = true";
+
+            const string sqlValidar = @"
+                SELECT c.""Cod"", c.""TipoCarpeta"", c.""EstadoCarpeta""
+                FROM documentos.""Carpetas"" c
+                WHERE c.""Cod"" = @CarpetaId AND c.""Estado"" = true";
+
+            const string sqlInsertar = @"
+                INSERT INTO documentos.""Archivos"" (
+                    ""Cod"", ""Nombre"", ""Ruta"", ""Descripcion"", ""Hash"", ""Tamaño"",
+                    ""ContentType"", ""TipoArchivo"", ""TipoDocumental"", ""OrigenDocumento"",
+                    ""PaginaInicio"", ""PaginaFin"", ""FechaDocumento"", ""CodigoDocumento"",
+                    ""Carpeta"", ""SubidoPor"", ""Estado"", ""EstadoUpload"", ""Version""
+                ) VALUES (
+                    documentos.""F_SiguienteCod""('Archivos', NULL),
+                    @Nombre, @Ruta, @Descripcion, @Hash, @Tamano,
+                    @ContentType, @TipoArchivo, @TipoDocumental, @OrigenDocumento,
+                    @PaginaInicio, @PaginaFin, @FechaDocumento, @CodigoDocumento,
+                    @Carpeta, @Usuario, true, 'COMPLETADO', 1
+                ) RETURNING ""Cod""";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                // 1. Obtener archivo origen
+                var archivoOrigen = await connection.QueryFirstOrDefaultAsync<dynamic>(sqlObtener,
+                    new { ArchivoId = archivoId });
+
+                if (archivoOrigen == null)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Archivo no encontrado" };
+                }
+
+                // 2. Validar carpeta destino
+                var carpeta = await connection.QueryFirstOrDefaultAsync<dynamic>(sqlValidar,
+                    new { CarpetaId = carpetaDestinoId });
+
+                if (carpeta == null)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Carpeta destino no encontrada" };
+                }
+
+                if (carpeta.TipoCarpeta != 3 && carpeta.TipoCarpeta != 4)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "Solo se pueden copiar archivos a Expedientes o Carpetas Genéricas" };
+                }
+
+                if (carpeta.EstadoCarpeta == 2)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "La carpeta destino está cerrada" };
+                }
+
+                // 3. Copiar archivo en GCS con nueva ruta
+                string rutaOrigen = archivoOrigen.Ruta;
+                var extension = Path.GetExtension(rutaOrigen);
+                var basePath = rutaOrigen[..^extension.Length];
+                var timestamp = DateTime.UtcNow.Ticks;
+                var nuevaRuta = $"{basePath}_copy_{timestamp}{extension}";
+
+                var authToken = GetAuthToken();
+                var copiado = await _storageClient.CopyFileAsync(rutaOrigen, nuevaRuta, authToken);
+
+                if (!copiado)
+                {
+                    return new ResultadoArchivo { Exito = false, Mensaje = "No se pudo copiar el archivo en el storage" };
+                }
+
+                // 4. Crear nuevo registro en BD
+                var nombreArchivo = nuevoNombre ?? archivoOrigen.Nombre;
+                var nuevoArchivoCod = await connection.QueryFirstAsync<long>(sqlInsertar, new
+                {
+                    Nombre = nombreArchivo,
+                    Ruta = nuevaRuta,
+                    Descripcion = archivoOrigen.Descripcion,
+                    Hash = archivoOrigen.Hash,
+                    Tamano = archivoOrigen.Tamaño,
+                    ContentType = archivoOrigen.ContentType,
+                    TipoArchivo = archivoOrigen.TipoArchivo,
+                    TipoDocumental = archivoOrigen.TipoDocumental,
+                    OrigenDocumento = archivoOrigen.OrigenDocumento,
+                    PaginaInicio = archivoOrigen.PaginaInicio,
+                    PaginaFin = archivoOrigen.PaginaFin,
+                    FechaDocumento = archivoOrigen.FechaDocumento,
+                    CodigoDocumento = archivoOrigen.CodigoDocumento,
+                    Carpeta = carpetaDestinoId,
+                    Usuario = usuarioId
+                });
+
+                _logger.LogInformation("Archivo {ArchivoOrigen} copiado a {NuevoArchivo} en carpeta {CarpetaId}",
+                    archivoId, nuevoArchivoCod, carpetaDestinoId);
+
+                return new ResultadoArchivo
+                {
+                    Exito = true,
+                    ArchivoCod = nuevoArchivoCod,
+                    Mensaje = "Archivo copiado exitosamente"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error copiando archivo {ArchivoId}", archivoId);
+                return new ResultadoArchivo { Exito = false, Mensaje = "Error al copiar el archivo: " + ex.Message };
             }
         }
 

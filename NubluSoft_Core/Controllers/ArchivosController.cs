@@ -108,6 +108,7 @@ namespace NubluSoft_Core.Controllers
 
         /// <summary>
         /// Elimina un archivo (usa función PostgreSQL F_EliminarArchivo)
+        /// También elimina el archivo físico de GCS
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(long id)
@@ -122,6 +123,59 @@ namespace NubluSoft_Core.Controllers
                 return BadRequest(new { resultado.Mensaje });
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// Mueve un archivo a otra carpeta
+        /// </summary>
+        [HttpPost("{id}/mover")]
+        public async Task<IActionResult> Mover(long id, [FromBody] MoverArchivoRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var usuarioId = User.GetUserId();
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            var resultado = await _service.MoverAsync(id, usuarioId, request.CarpetaDestino);
+
+            if (!resultado.Exito)
+                return BadRequest(new { resultado.Mensaje });
+
+            return Ok(new { resultado.Mensaje, resultado.ArchivoCod });
+        }
+
+        /// <summary>
+        /// Copia un archivo a otra carpeta
+        /// </summary>
+        [HttpPost("{id}/copiar")]
+        public async Task<IActionResult> Copiar(long id, [FromBody] CopiarArchivoRequest request)
+        {
+            _logger.LogInformation("Copiar archivo {ArchivoId} - Request: CarpetaDestino={CarpetaDestino}, NuevoNombre={NuevoNombre}",
+                id, request?.CarpetaDestino, request?.NuevoNombre);
+
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage);
+                _logger.LogWarning("Copiar archivo {ArchivoId} - ModelState inválido: {Errors}", id, string.Join(", ", errors));
+                return BadRequest(ModelState);
+            }
+
+            var usuarioId = User.GetUserId();
+            if (usuarioId == 0)
+                return Unauthorized(new { Message = "No se pudo determinar el usuario" });
+
+            var resultado = await _service.CopiarAsync(id, usuarioId, request.CarpetaDestino, request.NuevoNombre);
+
+            if (!resultado.Exito)
+            {
+                _logger.LogWarning("Copiar archivo {ArchivoId} - Error en servicio: {Mensaje}", id, resultado.Mensaje);
+                return BadRequest(new { resultado.Mensaje });
+            }
+
+            var archivo = await _service.ObtenerPorIdAsync(resultado.ArchivoCod!.Value);
+            return CreatedAtAction(nameof(GetById), new { id = resultado.ArchivoCod }, archivo);
         }
 
         /// <summary>

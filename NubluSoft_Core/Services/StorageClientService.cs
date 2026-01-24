@@ -241,6 +241,40 @@ namespace NubluSoft_Core.Services
             }
         }
 
+        public async Task<bool> CopyFileAsync(
+            string sourceObjectName,
+            string destinationObjectName,
+            string? authToken = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Copiando archivo en GCS: {Source} -> {Destination}",
+                    sourceObjectName, destinationObjectName);
+
+                var request = new
+                {
+                    SourceObjectName = sourceObjectName,
+                    DestinationObjectName = destinationObjectName
+                };
+
+                var response = await SendPostAsync<CopyResponse>(
+                    "/internal/Internal/copy",
+                    request,
+                    authToken,
+                    cancellationToken);
+
+                return response?.Success ?? false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error copiando {Source} a {Destination}",
+                    sourceObjectName, destinationObjectName);
+                return false;
+            }
+        }
+
         // ==================== HELPERS ====================
 
         private async Task<T?> SendPostAsync<T>(
@@ -317,6 +351,14 @@ namespace NubluSoft_Core.Services
         {
             public bool Success { get; set; }
             public string? ObjectName { get; set; }
+            public string? Message { get; set; }
+        }
+
+        private class CopyResponse
+        {
+            public bool Success { get; set; }
+            public string? SourceObjectName { get; set; }
+            public string? DestinationObjectName { get; set; }
             public string? Message { get; set; }
         }
     }

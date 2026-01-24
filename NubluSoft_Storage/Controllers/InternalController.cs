@@ -191,6 +191,52 @@ namespace NubluSoft_Storage.Controllers
         }
 
         /// <summary>
+        /// Copia un archivo dentro de GCS
+        /// Solo para uso interno (Core → Storage para copiar carpetas)
+        /// </summary>
+        [HttpPost("copy")]
+        public async Task<IActionResult> CopyFile([FromBody] CopyFileRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            if (string.IsNullOrEmpty(request.SourceObjectName))
+                return BadRequest(new { Error = "sourceObjectName es requerido" });
+
+            if (string.IsNullOrEmpty(request.DestinationObjectName))
+                return BadRequest(new { Error = "destinationObjectName es requerido" });
+
+            try
+            {
+                _logger.LogInformation(
+                    "Copiando archivo en GCS: {Source} -> {Destination}",
+                    request.SourceObjectName, request.DestinationObjectName);
+
+                var copied = await _gcsService.CopyAsync(
+                    request.SourceObjectName,
+                    request.DestinationObjectName);
+
+                return Ok(new CopyFileResponse
+                {
+                    Success = copied,
+                    SourceObjectName = request.SourceObjectName,
+                    DestinationObjectName = request.DestinationObjectName,
+                    Message = copied ? "Archivo copiado exitosamente" : "No se pudo copiar el archivo"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error copiando {Source} a {Destination}",
+                    request.SourceObjectName, request.DestinationObjectName);
+                return StatusCode(500, new CopyFileResponse
+                {
+                    Success = false,
+                    Error = "Error al copiar archivo"
+                });
+            }
+        }
+
+        /// <summary>
         /// Elimina un archivo de GCS
         /// Solo para uso interno
         /// </summary>
@@ -437,5 +483,20 @@ namespace NubluSoft_Storage.Controllers
         public string? Expires { get; set; }
         public string? SignedHeaders { get; set; }
         public int SignatureLength { get; set; }
+    }
+
+    public class CopyFileRequest
+    {
+        public string SourceObjectName { get; set; } = string.Empty;
+        public string DestinationObjectName { get; set; } = string.Empty;
+    }
+
+    public class CopyFileResponse
+    {
+        public bool Success { get; set; }
+        public string? SourceObjectName { get; set; }
+        public string? DestinationObjectName { get; set; }
+        public string? Message { get; set; }
+        public string? Error { get; set; }
     }
 }
