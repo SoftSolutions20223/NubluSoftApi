@@ -204,4 +204,20 @@
         public string NombreUsuario { get; set; } = string.Empty;
         public int Total { get; set; }
     }
+
+    /// <summary>
+    /// Registro de auditoría de un expediente
+    /// Incluye acciones sobre el expediente, sus subcarpetas y archivos
+    /// </summary>
+    public class AuditoriaExpedienteDto
+    {
+        public DateTime Fecha { get; set; }
+        public string Accion { get; set; } = string.Empty;
+        public string Tabla { get; set; } = string.Empty;
+        public long RegistroCod { get; set; }
+        public string? Detalle { get; set; }
+        public long? Usuario { get; set; }
+        public string? NombreUsuario { get; set; }
+        public string? IP { get; set; }
+    }
 }

@@ -85,6 +85,39 @@ namespace NubluSoft_Core.Controllers
         }
 
         /// <summary>
+        /// Obtiene el índice electrónico de un expediente (Acuerdo 002/2014 AGN).
+        /// Solo disponible para expedientes (TipoCarpeta = 3).
+        /// Incluye todos los archivos del expediente y sus subcarpetas genéricas.
+        /// </summary>
+        [HttpGet("{id}/indice-electronico")]
+        public async Task<IActionResult> GetIndiceElectronico(long id)
+        {
+            var indice = await _service.ObtenerIndiceElectronicoAsync(id);
+
+            if (indice == null)
+                return NotFound(new { Message = "Expediente no encontrado o sin índice electrónico. Este endpoint solo funciona con expedientes (TipoCarpeta = 3)." });
+
+            // Retornar el JSON directamente (ya viene como string JSON de PostgreSQL)
+            return Content(indice, "application/json");
+        }
+
+        /// <summary>
+        /// Obtiene la auditoría completa de un expediente.
+        /// Solo disponible para expedientes (TipoCarpeta = 3).
+        /// Incluye todas las acciones sobre el expediente, sus subcarpetas y archivos.
+        /// </summary>
+        [HttpGet("{id}/auditoria")]
+        public async Task<IActionResult> GetAuditoria(long id)
+        {
+            var auditoria = await _service.ObtenerAuditoriaExpedienteAsync(id);
+
+            if (!auditoria.Any())
+                return NotFound(new { Message = "Expediente no encontrado o sin registros de auditoría. Este endpoint solo funciona con expedientes (TipoCarpeta = 3)." });
+
+            return Ok(auditoria);
+        }
+
+        /// <summary>
         /// Obtiene el árbol de Series y Subseries
         /// </summary>
         [HttpGet("arbol")]

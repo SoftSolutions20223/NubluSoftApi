@@ -52,6 +52,9 @@ builder.Services.AddSingleton<INotificacionesHubService, NotificacionesHubServic
 // Background service para escuchar PostgreSQL NOTIFY
 builder.Services.AddHostedService<PostgresNotificacionListener>();
 
+// Background service para generar índice electrónico automáticamente
+builder.Services.AddHostedService<IndiceElectronicoListener>();
+
 // SignalR para WebSockets
 builder.Services.AddSignalR(options =>
 {
@@ -162,6 +165,7 @@ try
 
     // Log de notificaciones
     logger.LogInformation("[OK] PostgreSQL NOTIFY listener activo (canal: notificaciones_cambios)");
+    logger.LogInformation("[OK] PostgreSQL NOTIFY listener activo (canal: indice_electronico_cambios)");
     logger.LogInformation("[OK] WebSocket Hub disponible en /ws/notificaciones");
 }
 catch (Exception ex)

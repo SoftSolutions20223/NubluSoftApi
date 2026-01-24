@@ -25,5 +25,11 @@ namespace NubluSoft_Core.Services
 
         // Estadísticas
         Task<CarpetaEstadisticasDto?> ObtenerEstadisticasAsync(long carpetaId, long entidadId);
+
+        // Índice Electrónico
+        Task<string?> ObtenerIndiceElectronicoAsync(long carpetaId);
+
+        // Auditoría de Expediente
+        Task<IEnumerable<AuditoriaExpedienteDto>> ObtenerAuditoriaExpedienteAsync(long expedienteId);
     }
 }

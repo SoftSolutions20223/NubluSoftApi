@@ -751,6 +751,69 @@ namespace NubluSoft_Core.Services
             }
         }
 
+        // ==================== ÍNDICE ELECTRÓNICO ====================
+
+        public async Task<string?> ObtenerIndiceElectronicoAsync(long carpetaId)
+        {
+            const string sql = @"
+                SELECT ""IndiceElectronico""
+                FROM documentos.""Carpetas""
+                WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true AND ""TipoCarpeta"" = 3";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+                return await connection.QueryFirstOrDefaultAsync<string>(sql, new { CarpetaId = carpetaId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo índice electrónico de carpeta {CarpetaId}", carpetaId);
+                return null;
+            }
+        }
+
+        // ==================== AUDITORÍA DE EXPEDIENTE ====================
+
+        public async Task<IEnumerable<AuditoriaExpedienteDto>> ObtenerAuditoriaExpedienteAsync(long expedienteId)
+        {
+            const string sql = @"
+                SELECT
+                    ""Fecha"",
+                    ""Accion"",
+                    ""Tabla"",
+                    ""RegistroCod"",
+                    ""Detalle"",
+                    ""Usuario"",
+                    ""NombreUsuario"",
+                    ""IP""
+                FROM documentos.""F_ObtenerAuditoriaExpediente""(@ExpedienteId)";
+
+            try
+            {
+                using var connection = _connectionFactory.CreateConnection();
+                await connection.OpenAsync();
+
+                // Verificar que sea un expediente
+                var tipoCarpeta = await connection.QueryFirstOrDefaultAsync<long?>(
+                    @"SELECT ""TipoCarpeta"" FROM documentos.""Carpetas"" WHERE ""Cod"" = @ExpedienteId AND ""Estado"" = true",
+                    new { ExpedienteId = expedienteId });
+
+                if (tipoCarpeta != 3)
+                {
+                    _logger.LogWarning("Intento de obtener auditoría de carpeta {CarpetaId} que no es expediente", expedienteId);
+                    return Enumerable.Empty<AuditoriaExpedienteDto>();
+                }
+
+                return await connection.QueryAsync<AuditoriaExpedienteDto>(sql, new { ExpedienteId = expedienteId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error obteniendo auditoría del expediente {ExpedienteId}", expedienteId);
+                return Enumerable.Empty<AuditoriaExpedienteDto>();
+            }
+        }
+
         // ==================== HELPERS ====================
 
         private List<CarpetaArbol> ConstruirArbol(List<CarpetaArbol> carpetas)

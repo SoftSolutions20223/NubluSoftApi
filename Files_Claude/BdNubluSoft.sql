@@ -646,158 +646,154 @@ $$;
 CREATE FUNCTION documentos."F_CopiarCarpeta"(p_carpetaorigen bigint, p_carpetadestino bigint, p_usuario bigint, p_nuevonombre character varying DEFAULT NULL::character varying, p_copiararchivos boolean DEFAULT true) RETURNS TABLE("Exito" boolean, "NuevaCarpetaCod" bigint, "CarpetasCopiadas" integer, "ArchivosCopiados" integer, "Mensaje" character varying)
     LANGUAGE plpgsql
     AS $$
-DECLARE
-    v_NuevaCarpetaCod BIGINT;
-    v_NombreOrigen VARCHAR(200);
-    v_TipoCarpetaOrigen BIGINT;
-    v_TipoCarpetaDestino BIGINT;
-    v_SerieRaizDestino BIGINT;
-    v_CarpetasCopiadas INTEGER := 0;
-    v_ArchivosCopiados INTEGER := 0;
-    v_HijaCod BIGINT;
-    v_ArchivoCod BIGINT;
-    v_NuevoArchivoCod BIGINT;
-    v_Validacion RECORD;
-    rec RECORD;
-BEGIN
-    -- Obtener datos de carpeta origen
-    SELECT "Nombre", "TipoCarpeta"
-    INTO v_NombreOrigen, v_TipoCarpetaOrigen
-    FROM "Carpetas"
-    WHERE "Cod" = p_CarpetaOrigen AND "Estado" = true;
-    
-    IF NOT FOUND THEN
-        RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'Carpeta origen no encontrada'::VARCHAR(500);
-        RETURN;
-    END IF;
-    
-    -- Verificar carpeta destino
-    IF p_CarpetaDestino IS NOT NULL THEN
-        SELECT "TipoCarpeta" INTO v_TipoCarpetaDestino
-        FROM "Carpetas"
-        WHERE "Cod" = p_CarpetaDestino AND "Estado" = true;
-        
-        IF NOT FOUND THEN
-            RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'Carpeta destino no encontrada'::VARCHAR(500);
-            RETURN;
-        END IF;
-        
-        -- No se puede copiar a sí misma o a un descendiente
-        IF p_CarpetaOrigen = p_CarpetaDestino THEN
-            RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'No se puede copiar una carpeta a sí misma'::VARCHAR(500);
-            RETURN;
-        END IF;
-        
-        -- Validar jerarquía
-        SELECT * INTO v_Validacion FROM "F_ValidarJerarquiaCarpeta"(v_TipoCarpetaDestino, v_TipoCarpetaOrigen);
-        IF NOT v_Validacion."Valido" THEN
-            RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, v_Validacion."Mensaje";
-            RETURN;
-        END IF;
-        
-        v_SerieRaizDestino := "F_ObtenerSerieRaiz"(p_CarpetaDestino);
-    END IF;
-    
-    -- Obtener nuevo código
-    v_NuevaCarpetaCod := "F_SiguienteCodCarpeta"();
-    
-    -- Copiar la carpeta principal
-    INSERT INTO "Carpetas" (
-        "Cod", "Nombre", "TipoCarpeta", "CarpetaPadre", "TRD",
-        "CodSerie", "CodSubSerie", "SerieRaiz",
-        "Descripcion", "NivelVisualizacion", "Delegado",
-        "Soporte", "FrecuenciaConsulta", "UbicacionFisica",
-        "CodigoExpediente", "PalabrasClave", "Observaciones",
-        "CreadoPor", "FechaCreacion", "Estado", "EstadoCarpeta",
-        "Copia", "CarpetaOriginal"
-    )
-    SELECT 
-        v_NuevaCarpetaCod,
-        COALESCE(p_NuevoNombre, "Nombre" || ' (copia)'),
-        "TipoCarpeta",
-        p_CarpetaDestino,
-        "TRD",
-        CASE WHEN p_CarpetaDestino IS NULL THEN v_NuevaCarpetaCod ELSE 
-            (SELECT "CodSerie" FROM "Carpetas" WHERE "Cod" = p_CarpetaDestino) END,
-        "CodSubSerie",
-        COALESCE(v_SerieRaizDestino, v_NuevaCarpetaCod),
-        "Descripcion",
-        "NivelVisualizacion",
-        "Delegado",
-        "Soporte",
-        "FrecuenciaConsulta",
-        "UbicacionFisica",
-        "CodigoExpediente",
-        "PalabrasClave",
-        "Observaciones",
-        p_Usuario,
-        CURRENT_TIMESTAMP,
-        true,
-        1,
-        true, -- Es copia
-        p_CarpetaOrigen
-    FROM "Carpetas"
-    WHERE "Cod" = p_CarpetaOrigen;
-    
-    v_CarpetasCopiadas := 1;
-    
-    -- Copiar archivos si se solicita
-    IF p_CopiarArchivos THEN
-        FOR rec IN 
-            SELECT * FROM "Archivos" WHERE "Carpeta" = p_CarpetaOrigen AND "Estado" = true
-        LOOP
-            v_NuevoArchivoCod := COALESCE((SELECT MAX("Cod") FROM "Archivos"), 0) + 1;
-            
-            INSERT INTO "Archivos" (
-                "Cod", "Nombre", "Carpeta", "Ruta", "TipoArchivo", "Formato",
-                "NumeroHojas", "Tamaño", "Estado", "Indice",
-                "FechaDocumento", "FechaIncorporacion", "OrigenDocumento",
-                "Hash", "AlgoritmoHash", "TipoDocumental", "Observaciones",
-                "SubidoPor", "Version", "Descripcion", "Copia", "ArchivoOrginal"
-            ) VALUES (
-                v_NuevoArchivoCod, rec."Nombre", v_NuevaCarpetaCod, rec."Ruta",
-                rec."TipoArchivo", rec."Formato", rec."NumeroHojas", rec."Tamaño",
-                true, rec."Indice", rec."FechaDocumento", CURRENT_TIMESTAMP,
-                rec."OrigenDocumento", rec."Hash", rec."AlgoritmoHash",
-                rec."TipoDocumental", rec."Observaciones", p_Usuario,
-                1, rec."Descripcion", true, rec."Cod"
-            );
-            
-            v_ArchivosCopiados := v_ArchivosCopiados + 1;
-        END LOOP;
-    END IF;
-    
-    -- Copiar subcarpetas recursivamente
-    FOR v_HijaCod IN 
-        SELECT "Cod" FROM "Carpetas" WHERE "CarpetaPadre" = p_CarpetaOrigen AND "Estado" = true
-    LOOP
-        DECLARE
-            v_ResultadoHija RECORD;
-        BEGIN
-            SELECT * INTO v_ResultadoHija
-            FROM "F_CopiarCarpeta"(v_HijaCod, v_NuevaCarpetaCod, p_Usuario, NULL, p_CopiarArchivos);
-            
-            v_CarpetasCopiadas := v_CarpetasCopiadas + v_ResultadoHija."CarpetasCopiadas";
-            v_ArchivosCopiados := v_ArchivosCopiados + v_ResultadoHija."ArchivosCopiados";
-        END;
-    END LOOP;
-    
-    -- Registrar en historial
-    INSERT INTO "Historial_Acciones" (
-        "Tabla", "RegistroCod", "Accion", "Usuario", "Fecha", "Observaciones"
-    ) VALUES (
-        'Carpetas', v_NuevaCarpetaCod, 'COPIAR', p_Usuario, CURRENT_TIMESTAMP,
-        'Copiada desde carpeta ' || p_CarpetaOrigen || '. Carpetas: ' || v_CarpetasCopiadas || ', Archivos: ' || v_ArchivosCopiados
-    );
-    
-    RETURN QUERY SELECT 
-        true,
-        v_NuevaCarpetaCod,
-        v_CarpetasCopiadas,
-        v_ArchivosCopiados,
-        ('Carpeta copiada exitosamente. ' || v_CarpetasCopiadas || ' carpetas, ' || v_ArchivosCopiados || ' archivos')::VARCHAR(500);
-END;
-$$;
+  DECLARE
+      v_NuevaCarpetaCod BIGINT;
+      v_NombreOrigen VARCHAR(200);
+      v_TipoCarpetaOrigen BIGINT;
+      v_TipoCarpetaDestino BIGINT;
+      v_SerieRaizDestino BIGINT;
+      v_CarpetasCopiadas INTEGER := 0;
+      v_ArchivosCopiados INTEGER := 0;
+      v_HijaCod BIGINT;
+      v_NuevoArchivoCod BIGINT;
+      v_Validacion RECORD;
+      rec RECORD;
+  BEGIN
+      SELECT "Nombre", "TipoCarpeta"
+      INTO v_NombreOrigen, v_TipoCarpetaOrigen
+      FROM "Carpetas"
+      WHERE "Cod" = p_CarpetaOrigen AND "Estado" = true;
+
+      IF NOT FOUND THEN
+          RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'Carpeta origen no encontrada'::VARCHAR(500);    
+          RETURN;
+      END IF;
+
+      IF p_CarpetaDestino IS NOT NULL THEN
+          SELECT "TipoCarpeta" INTO v_TipoCarpetaDestino
+          FROM "Carpetas"
+          WHERE "Cod" = p_CarpetaDestino AND "Estado" = true;
+
+          IF NOT FOUND THEN
+              RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'Carpeta destino no
+  encontrada'::VARCHAR(500);
+              RETURN;
+          END IF;
+
+          IF p_CarpetaOrigen = p_CarpetaDestino THEN
+              RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, 'No se puede copiar una carpeta a sí
+  misma'::VARCHAR(500);
+              RETURN;
+          END IF;
+
+          SELECT * INTO v_Validacion FROM "F_ValidarJerarquiaCarpeta"(v_TipoCarpetaDestino,
+  v_TipoCarpetaOrigen);
+          IF NOT v_Validacion."Valido" THEN
+              RETURN QUERY SELECT false, NULL::BIGINT, 0, 0, v_Validacion."Mensaje";
+              RETURN;
+          END IF;
+      
+          v_SerieRaizDestino := "F_ObtenerSerieRaiz"(p_CarpetaDestino);
+      END IF;
+
+      v_NuevaCarpetaCod := "F_SiguienteCodCarpeta"();
+
+      INSERT INTO "Carpetas" (
+          "Cod", "Nombre", "TipoCarpeta", "CarpetaPadre", "TRD",
+          "CodSerie", "CodSubSerie", "SerieRaiz",
+          "Descripcion", "NivelVisualizacion", "Delegado",
+          "Soporte", "FrecuenciaConsulta", "UbicacionFisica",
+          "CodigoExpediente", "PalabrasClave", "Observaciones",
+          "CreadoPor", "FechaCreacion", "Estado", "EstadoCarpeta",
+          "Copia", "CarpetaOriginal", "Entidad"
+      )
+      SELECT
+          v_NuevaCarpetaCod,
+          COALESCE(p_NuevoNombre, "Nombre" || ' (copia)'),
+          "TipoCarpeta",
+          p_CarpetaDestino,
+          "TRD",
+          CASE WHEN p_CarpetaDestino IS NULL THEN v_NuevaCarpetaCod ELSE
+              (SELECT "CodSerie" FROM "Carpetas" WHERE "Cod" = p_CarpetaDestino) END,
+          "CodSubSerie",
+          COALESCE(v_SerieRaizDestino, v_NuevaCarpetaCod),
+          "Descripcion",
+          "NivelVisualizacion",
+          "Delegado",
+          "Soporte",
+          "FrecuenciaConsulta",
+          "UbicacionFisica",
+          "CodigoExpediente",
+          "PalabrasClave",
+          "Observaciones",
+          p_Usuario,
+          CURRENT_TIMESTAMP,
+          true,
+          1,
+          true,
+          p_CarpetaOrigen,
+          "Entidad"
+      FROM "Carpetas"
+      WHERE "Cod" = p_CarpetaOrigen;
+
+      v_CarpetasCopiadas := 1;
+
+      IF p_CopiarArchivos THEN
+          FOR rec IN
+              SELECT * FROM "Archivos" WHERE "Carpeta" = p_CarpetaOrigen AND "Estado" = true
+          LOOP
+              v_NuevoArchivoCod := COALESCE((SELECT MAX("Cod") FROM "Archivos"), 0) + 1;
+
+              INSERT INTO "Archivos" (
+                  "Cod", "Nombre", "Carpeta", "Ruta", "TipoArchivo", "Formato",
+                  "NumeroHojas", "Tamaño", "Estado", "Indice",
+                  "FechaDocumento", "FechaIncorporacion", "OrigenDocumento",
+                  "Hash", "AlgoritmoHash", "TipoDocumental", "Observaciones",
+                  "SubidoPor", "Version", "Descripcion", "Copia", "ArchivoOrginal"
+              ) VALUES (
+                  v_NuevoArchivoCod, rec."Nombre", v_NuevaCarpetaCod, rec."Ruta",
+                  rec."TipoArchivo", rec."Formato", rec."NumeroHojas", rec."Tamaño",
+                  true, rec."Indice", rec."FechaDocumento", CURRENT_TIMESTAMP,
+                  rec."OrigenDocumento", rec."Hash", rec."AlgoritmoHash",
+                  rec."TipoDocumental", rec."Observaciones", p_Usuario,
+                  1, rec."Descripcion", true, rec."Cod"
+              );
+
+              v_ArchivosCopiados := v_ArchivosCopiados + 1;
+          END LOOP;
+      END IF;
+
+      FOR v_HijaCod IN
+          SELECT "Cod" FROM "Carpetas" WHERE "CarpetaPadre" = p_CarpetaOrigen AND "Estado" = true
+      LOOP
+          DECLARE
+              v_ResultadoHija RECORD;
+          BEGIN
+              SELECT * INTO v_ResultadoHija
+              FROM "F_CopiarCarpeta"(v_HijaCod, v_NuevaCarpetaCod, p_Usuario, NULL, p_CopiarArchivos);    
+
+              v_CarpetasCopiadas := v_CarpetasCopiadas + v_ResultadoHija."CarpetasCopiadas";
+              v_ArchivosCopiados := v_ArchivosCopiados + v_ResultadoHija."ArchivosCopiados";
+          END;
+      END LOOP;
+
+      INSERT INTO "Historial_Acciones" (
+          "Tabla", "RegistroCod", "Accion", "Usuario", "Fecha", "Observaciones"
+      ) VALUES (
+          'Carpetas', v_NuevaCarpetaCod, 'COPIAR', p_Usuario, CURRENT_TIMESTAMP,
+          'Copiada desde carpeta ' || p_CarpetaOrigen || '. Carpetas: ' || v_CarpetasCopiadas || ',       
+  Archivos: ' || v_ArchivosCopiados
+      );
+
+      RETURN QUERY SELECT
+          true,
+          v_NuevaCarpetaCod,
+          v_CarpetasCopiadas,
+          v_ArchivosCopiados,
+          ('Carpeta copiada exitosamente. ' || v_CarpetasCopiadas || ' carpetas, ' || v_ArchivosCopiados  
+  || ' archivos')::VARCHAR(500);
+  END;
+  $$;
 
 
 --
@@ -1151,83 +1147,95 @@ $$;
 
 
 --
--- Name: F_CrearTRD(character varying, bigint, bigint, bigint, bigint, bigint, character varying, character varying); Type: FUNCTION; Schema: documentos; Owner: -
+-- Name: F_CrearTRD(character varying, character varying, character varying, bigint, bigint, integer, integer, character varying, character varying, bigint); Type: FUNCTION; Schema: documentos; Owner: -
 --
 
-CREATE FUNCTION documentos."F_CrearTRD"(p_nombre character varying, p_codigo bigint, p_entidad bigint, p_trdpadre bigint DEFAULT NULL::bigint, p_tiempogestion bigint DEFAULT NULL::bigint, p_tiempocentral bigint DEFAULT NULL::bigint, p_disposicionfinal character varying DEFAULT NULL::character varying, p_procedimiento character varying DEFAULT NULL::character varying) RETURNS TABLE("TRDCod" bigint, "Tipo" character varying, "Mensaje" character varying)
+CREATE FUNCTION documentos."F_CrearTRD"(p_codigo character varying, p_nombre character varying, p_descripcion character varying DEFAULT NULL::character varying, p_trdpadre bigint DEFAULT NULL::bigint, p_entidad bigint DEFAULT NULL::bigint, p_tiempogestion integer DEFAULT NULL::integer, p_tiempocentral integer DEFAULT NULL::integer, p_disposicionfinal character varying DEFAULT NULL::character varying, p_procedimiento character varying DEFAULT NULL::character varying, p_usuario bigint DEFAULT NULL::bigint) RETURNS TABLE("Exito" boolean, "TRDCod" bigint, "Mensaje" character varying)
     LANGUAGE plpgsql
     AS $$
-DECLARE
-    v_TRDCod BIGINT;
-    v_Tipo VARCHAR(50);
-    v_TipoPadre VARCHAR(50);
-BEGIN
-    -- Validar nombre
-    IF p_Nombre IS NULL OR TRIM(p_Nombre) = '' THEN
-        RETURN QUERY SELECT NULL::BIGINT, NULL::VARCHAR(50), 'El nombre es obligatorio'::VARCHAR(500);
-        RETURN;
-    END IF;
+  DECLARE
+      v_TRDCod BIGINT;
+      v_Tipo VARCHAR(50);
+      v_TipoPadre VARCHAR(50);
+  BEGIN
+      -- Validar código
+      IF p_Codigo IS NULL OR TRIM(p_Codigo) = '' THEN
+          RETURN QUERY SELECT false, NULL::BIGINT, 'El código es obligatorio'::VARCHAR(500);
+          RETURN;
+      END IF;
+
+      -- Validar nombre
+      IF p_Nombre IS NULL OR TRIM(p_Nombre) = '' THEN
+          RETURN QUERY SELECT false, NULL::BIGINT, 'El nombre es obligatorio'::VARCHAR(500);
+          RETURN;
+      END IF;
+
+      -- Validar entidad
+      IF p_Entidad IS NULL THEN
+          RETURN QUERY SELECT false, NULL::BIGINT, 'La entidad es obligatoria'::VARCHAR(500);
+          RETURN;
+      END IF;
     
-    -- Validar código
-    IF p_Codigo IS NULL THEN
-        RETURN QUERY SELECT NULL::BIGINT, NULL::VARCHAR(50), 'El código es obligatorio'::VARCHAR(500);
-        RETURN;
-    END IF;
-    
-    -- Determinar tipo basado en si tiene padre
-    IF p_TRDPadre IS NULL THEN
-        v_Tipo := 'Serie';
-    ELSE
-        -- Verificar que el padre existe
-        SELECT "Tipo" INTO v_TipoPadre
-        FROM "Tablas_Retencion_Documental"
-        WHERE "Cod" = p_TRDPadre AND "Estado" = true;
-        
-        IF NOT FOUND THEN
-            RETURN QUERY SELECT NULL::BIGINT, NULL::VARCHAR(50), 'TRD padre no encontrada'::VARCHAR(500);
-            RETURN;
-        END IF;
-        
-        v_Tipo := 'Subserie';
-    END IF;
-    
-    -- Verificar que no exista el mismo código en la misma entidad y nivel
-    IF EXISTS (
-        SELECT 1 FROM "Tablas_Retencion_Documental"
-        WHERE "Codigo" = p_Codigo 
-          AND "Entidad" = p_Entidad 
-          AND "TRDPadre" IS NOT DISTINCT FROM p_TRDPadre
-          AND "Estado" = true
-    ) THEN
-        RETURN QUERY SELECT NULL::BIGINT, NULL::VARCHAR(50), 
-            ('Ya existe una ' || v_Tipo || ' con el código ' || p_Codigo)::VARCHAR(500);
-        RETURN;
-    END IF;
-    
-    -- Obtener siguiente código
-    SELECT COALESCE(MAX("Cod"), 0) + 1 INTO v_TRDCod FROM "Tablas_Retencion_Documental";
-    
-    -- Insertar TRD
-    INSERT INTO "Tablas_Retencion_Documental" (
-        "Cod", "Nombre", "Tipo", "Codigo", "TRDPadre", "Entidad",
-        "TiempoGestion", "TiempoCentral", "DisposicionFinal", "Procedimiento",
-        "Estado"
-    ) VALUES (
-        v_TRDCod, p_Nombre, v_Tipo, p_Codigo, p_TRDPadre, p_Entidad,
-        p_TiempoGestion, p_TiempoCentral, p_DisposicionFinal, p_Procedimiento,
-        true
-    );
-    
-    RETURN QUERY SELECT v_TRDCod, v_Tipo, (v_Tipo || ' "' || p_Nombre || '" creada exitosamente')::VARCHAR(500);
-END;
-$$;
+      -- Determinar tipo basado en si tiene padre
+      IF p_TRDPadre IS NULL THEN
+          v_Tipo := 'Serie';
+      ELSE
+          -- Verificar que el padre existe y es una Serie
+          SELECT "Tipo" INTO v_TipoPadre
+          FROM documentos."Tablas_Retencion_Documental"
+          WHERE "Cod" = p_TRDPadre AND "Estado" = true AND "Entidad" = p_Entidad;
+
+          IF NOT FOUND THEN
+              RETURN QUERY SELECT false, NULL::BIGINT, 'El TRD padre no existe o está
+  inactivo'::VARCHAR(500);
+              RETURN;
+          END IF;
+
+          IF v_TipoPadre != 'Serie' THEN
+              RETURN QUERY SELECT false, NULL::BIGINT, 'Solo se pueden crear Subseries dentro de
+  Series'::VARCHAR(500);
+              RETURN;
+          END IF;
+
+          v_Tipo := 'Subserie';
+      END IF;
+     
+      -- Verificar código único en la entidad
+      IF EXISTS (
+          SELECT 1 FROM documentos."Tablas_Retencion_Documental"
+          WHERE "Codigo" = p_Codigo AND "Entidad" = p_Entidad AND "Estado" = true
+      ) THEN
+          RETURN QUERY SELECT false, NULL::BIGINT, ('Ya existe una TRD con el código ' ||
+  p_Codigo)::VARCHAR(500);
+          RETURN;
+      END IF;
+
+      -- Obtener siguiente código
+      SELECT COALESCE(MAX("Cod"), 0) + 1 INTO v_TRDCod
+      FROM documentos."Tablas_Retencion_Documental";
+
+      -- Insertar TRD
+      INSERT INTO documentos."Tablas_Retencion_Documental" (
+          "Cod", "Codigo", "Nombre", "Descripcion", "Tipo", "TRDPadre", "Entidad",
+          "TiempoGestion", "TiempoCentral", "DisposicionFinal", "Procedimiento",
+          "Estado", "CreadoPor", "FechaCreacion"
+      ) VALUES (
+          v_TRDCod, p_Codigo, p_Nombre, p_Descripcion, v_Tipo, p_TRDPadre, p_Entidad,
+          p_TiempoGestion, p_TiempoCentral, p_DisposicionFinal, p_Procedimiento,
+          true, p_Usuario, NOW()
+      );
+
+      RETURN QUERY SELECT true, v_TRDCod, (v_Tipo || ' "' || p_Nombre || '" creada
+  exitosamente')::VARCHAR(500);
+  END;
+  $$;
 
 
 --
--- Name: FUNCTION "F_CrearTRD"(p_nombre character varying, p_codigo bigint, p_entidad bigint, p_trdpadre bigint, p_tiempogestion bigint, p_tiempocentral bigint, p_disposicionfinal character varying, p_procedimiento character varying); Type: COMMENT; Schema: documentos; Owner: -
+-- Name: FUNCTION "F_CrearTRD"(p_codigo character varying, p_nombre character varying, p_descripcion character varying, p_trdpadre bigint, p_entidad bigint, p_tiempogestion integer, p_tiempocentral integer, p_disposicionfinal character varying, p_procedimiento character varying, p_usuario bigint); Type: COMMENT; Schema: documentos; Owner: -
 --
 
-COMMENT ON FUNCTION documentos."F_CrearTRD"(p_nombre character varying, p_codigo bigint, p_entidad bigint, p_trdpadre bigint, p_tiempogestion bigint, p_tiempocentral bigint, p_disposicionfinal character varying, p_procedimiento character varying) IS 'Crea una Serie o Subserie en la TRD validando jerarquía';
+COMMENT ON FUNCTION documentos."F_CrearTRD"(p_codigo character varying, p_nombre character varying, p_descripcion character varying, p_trdpadre bigint, p_entidad bigint, p_tiempogestion integer, p_tiempocentral integer, p_disposicionfinal character varying, p_procedimiento character varying, p_usuario bigint) IS 'Crea una Serie o Subserie en la TRD validando jerarquía';
 
 
 --
@@ -1729,6 +1737,126 @@ $$;
 
 
 --
+-- Name: F_GenerarIndiceElectronico(bigint); Type: FUNCTION; Schema: documentos; Owner: -
+--
+
+CREATE FUNCTION documentos."F_GenerarIndiceElectronico"(p_expediente_id bigint) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+  DECLARE
+      v_indice JSON;
+      v_tipo_carpeta BIGINT;
+  BEGIN
+      SELECT "TipoCarpeta" INTO v_tipo_carpeta
+      FROM documentos."Carpetas"
+      WHERE "Cod" = p_expediente_id AND "Estado" = true;
+
+      IF v_tipo_carpeta IS NULL OR v_tipo_carpeta != 3 THEN
+          RETURN;
+      END IF;
+
+      WITH RECURSIVE
+      subcarpetas AS (
+          SELECT "Cod", "Nombre", "CarpetaPadre", ''::TEXT AS ruta_relativa
+          FROM documentos."Carpetas"
+          WHERE "Cod" = p_expediente_id AND "Estado" = true
+
+          UNION ALL
+
+          SELECT c."Cod", c."Nombre", c."CarpetaPadre",
+                 CASE
+                     WHEN s.ruta_relativa = '' THEN c."Nombre"
+                     ELSE s.ruta_relativa || '/' || c."Nombre"
+                 END
+          FROM documentos."Carpetas" c
+          INNER JOIN subcarpetas s ON c."CarpetaPadre" = s."Cod"
+          WHERE c."Estado" = true AND c."TipoCarpeta" = 4
+      ),
+      archivos_ordenados AS (
+          SELECT
+              a."Cod",
+              a."Nombre",
+              a."TipoDocumental",
+              td."Nombre" AS "NombreTipoDocumental",
+              a."FechaDocumento",
+              a."FechaSubida",
+              a."PaginaInicio",
+              a."PaginaFin",
+              a."Formato",
+              a."Tamaño",
+              a."Hash",
+              a."ContentType",
+              a."Descripcion",
+              a."CodigoDocumento",
+              COALESCE(s.ruta_relativa, '') AS "RutaRelativa",
+              ROW_NUMBER() OVER (ORDER BY a."FechaSubida", a."Cod") AS orden
+          FROM documentos."Archivos" a
+          INNER JOIN subcarpetas s ON a."Carpeta" = s."Cod"
+          LEFT JOIN documentos."Tipos_Documentales" td ON a."TipoDocumental" = td."Cod"
+          WHERE a."Estado" = true
+            AND COALESCE(a."EstadoUpload", 'CONFIRMADO') = 'CONFIRMADO'
+      )
+      SELECT json_build_object(
+          'expediente', (
+              SELECT json_build_object(
+                  'cod', c."Cod",
+                  'nombre', c."Nombre",
+                  'codigoExpediente', c."CodigoExpediente",
+                  'fechaCreacion', c."FechaCreacion",
+                  'fechaCierre', c."FechaCierre",
+                  'estadoCarpeta', ec."Nombre",
+                  'serie', (
+                      SELECT t."Nombre"
+                      FROM documentos."Tablas_Retencion_Documental" t
+                      WHERE t."Cod" = c."TRD"
+                  ),
+                  'codigoSerie', (
+                      SELECT t."Codigo"
+                      FROM documentos."Tablas_Retencion_Documental" t
+                      WHERE t."Cod" = c."TRD"
+                  )
+              )
+              FROM documentos."Carpetas" c
+              LEFT JOIN documentos."Estados_Carpetas" ec ON c."EstadoCarpeta" = ec."Cod"
+              WHERE c."Cod" = p_expediente_id
+          ),
+          'documentos', COALESCE((
+              SELECT json_agg(
+                  json_build_object(
+                      'orden', orden,
+                      'cod', "Cod",
+                      'nombre', "Nombre",
+                      'tipoDocumental', "NombreTipoDocumental",
+                      'fechaDocumento', "FechaDocumento",
+                      'fechaIncorporacion', "FechaSubida",
+                      'paginaInicio', "PaginaInicio",
+                      'paginaFin', "PaginaFin",
+                      'formato', "Formato",
+                      'tamano', "Tamaño",
+                      'hash', "Hash",
+                      'rutaRelativa', "RutaRelativa",
+                      'descripcion', "Descripcion",
+                      'codigoDocumento', "CodigoDocumento"
+                  ) ORDER BY orden
+              )
+              FROM archivos_ordenados
+          ), '[]'::json),
+          'totalDocumentos', (SELECT COUNT(*) FROM archivos_ordenados),
+          'generadoEn', NOW(),
+          'version', '1.0',
+          'norma', 'Acuerdo 002/2014 AGN'
+      ) INTO v_indice;
+
+      UPDATE documentos."Carpetas"
+      SET "IndiceElectronico" = v_indice::TEXT,
+          "FechaModificacion" = NOW()
+      WHERE "Cod" = p_expediente_id;
+
+  END;
+  $$;
+
+
+--
 -- Name: F_GenerarNumeroRadicado(bigint, character varying); Type: FUNCTION; Schema: documentos; Owner: -
 --
 
@@ -1945,6 +2073,83 @@ COMMENT ON FUNCTION documentos."F_MoverCarpeta"(p_carpetacod bigint, p_nuevodest
 
 
 --
+-- Name: F_NotificarCambioCarpeta(); Type: FUNCTION; Schema: documentos; Owner: -
+--
+
+CREATE FUNCTION documentos."F_NotificarCambioCarpeta"() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+  DECLARE
+      v_carpeta_id BIGINT;
+      v_expediente_id BIGINT;
+      v_tipo_carpeta BIGINT;
+  BEGIN
+      IF TG_OP = 'DELETE' THEN
+          v_carpeta_id := OLD."Cod";
+          v_tipo_carpeta := OLD."TipoCarpeta";
+      ELSE
+          v_carpeta_id := NEW."Cod";
+          v_tipo_carpeta := NEW."TipoCarpeta";
+      END IF;
+
+      IF v_tipo_carpeta = 4 THEN
+          v_expediente_id := documentos."F_ObtenerExpedienteContenedor"(v_carpeta_id);
+
+          IF v_expediente_id IS NOT NULL THEN
+              PERFORM pg_notify(
+                  'indice_electronico_cambios',
+                  json_build_object(
+                      'carpeta_id', v_expediente_id,
+                      'operacion', TG_OP,
+                      'tabla', 'Carpetas',
+                      'timestamp', NOW()
+                  )::text
+              );
+          END IF;
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+  END;
+  $$;
+
+
+--
+-- Name: F_NotificarCambioIndice(); Type: FUNCTION; Schema: documentos; Owner: -
+--
+
+CREATE FUNCTION documentos."F_NotificarCambioIndice"() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+  DECLARE
+      v_carpeta_id BIGINT;
+      v_expediente_id BIGINT;
+  BEGIN
+      IF TG_OP = 'DELETE' THEN
+          v_carpeta_id := OLD."Carpeta";
+      ELSE
+          v_carpeta_id := NEW."Carpeta";
+      END IF;
+      
+      v_expediente_id := documentos."F_ObtenerExpedienteContenedor"(v_carpeta_id);
+
+      IF v_expediente_id IS NOT NULL THEN
+          PERFORM pg_notify(
+              'indice_electronico_cambios',
+              json_build_object(
+                  'carpeta_id', v_expediente_id,
+                  'operacion', TG_OP,
+                  'tabla', 'Archivos',
+                  'timestamp', NOW()
+              )::text
+          );
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+  END;
+  $$;
+
+
+--
 -- Name: F_NotificarFirmante(bigint, character varying); Type: FUNCTION; Schema: documentos; Owner: -
 --
 
@@ -1997,9 +2202,8 @@ $$;
 
 CREATE FUNCTION documentos."F_NotifyNavIndex"() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-  DECLARE
-      v_payload JSON;
+    AS $$                                                                                                 DECLARE
+      v_payload JSON;                                                                                     
       v_tipo_cambio VARCHAR(20);
       v_es_estructura BOOLEAN;
       v_padre_tipo BIGINT;
@@ -2057,8 +2261,6 @@ CREATE FUNCTION documentos."F_NotifyNavIndex"() RETURNS trigger
           );
       END IF;
 
-      -- Siempre emitir NOTIFY para cualquier cambio en carpetas
-      -- (antes solo emitía para Series, Subseries y sus hijos directos)
       PERFORM pg_notify('navindex_cambios', v_payload::TEXT);
 
       IF TG_OP = 'DELETE' THEN
@@ -2074,7 +2276,7 @@ CREATE FUNCTION documentos."F_NotifyNavIndex"() RETURNS trigger
 -- Name: FUNCTION "F_NotifyNavIndex"(); Type: COMMENT; Schema: documentos; Owner: -
 --
 
-COMMENT ON FUNCTION documentos."F_NotifyNavIndex"() IS 'Emite NOTIFY para cualquier cambio en carpetas, permitiendo actualizar el caché de NavIndex';
+COMMENT ON FUNCTION documentos."F_NotifyNavIndex"() IS 'Emite NOTIFY cuando cambian carpetas que afectan la estructura documental (Series, Subseries, y sus hijos directos)';
 
 
 --
@@ -2134,6 +2336,60 @@ CREATE FUNCTION documentos."F_NotifyNavIndex_Archivos"() RETURNS trigger
 
 
 --
+-- Name: F_ObtenerAuditoriaExpediente(bigint); Type: FUNCTION; Schema: documentos; Owner: -
+--
+
+CREATE FUNCTION documentos."F_ObtenerAuditoriaExpediente"(p_expediente_id bigint) RETURNS TABLE("Fecha" timestamp without time zone, "Accion" character varying, "Tabla" character varying, "RegistroCod" bigint, "Detalle" text, "Usuario" bigint, "NombreUsuario" text, "IP" character varying)
+    LANGUAGE plpgsql
+    AS $$
+  BEGIN
+      RETURN QUERY
+      WITH RECURSIVE
+      subcarpetas AS (
+          SELECT c."Cod"
+          FROM documentos."Carpetas" c
+          WHERE c."Cod" = p_expediente_id
+        
+          UNION ALL
+
+          SELECT c."Cod"
+          FROM documentos."Carpetas" c
+          INNER JOIN subcarpetas s ON c."CarpetaPadre" = s."Cod"
+      ),
+      archivos_expediente AS (
+          SELECT a."Cod"
+          FROM documentos."Archivos" a
+          WHERE a."Carpeta" IN (SELECT "Cod" FROM subcarpetas)
+      )
+      SELECT
+          h."Fecha",
+          h."Accion",
+          h."Tabla",
+          h."RegistroCod",
+          COALESCE(h."Observaciones",
+              CASE
+                  WHEN h."Tabla" = 'Carpetas' THEN (SELECT c."Nombre" FROM documentos."Carpetas" c WHERE  
+  c."Cod" = h."RegistroCod")
+                  WHEN h."Tabla" = 'Archivos' THEN (SELECT a."Nombre" FROM documentos."Archivos" a WHERE  
+  a."Cod" = h."RegistroCod")
+                  ELSE NULL
+              END
+          )::TEXT AS "Detalle",
+          h."Usuario",
+          COALESCE(u."Nombres" || ' ' || u."Apellidos", 'Sistema')::TEXT AS "NombreUsuario",
+          h."IP"
+      FROM documentos."Historial_Acciones" h
+      LEFT JOIN documentos."Usuarios" u ON h."Usuario" = u."Cod"
+      WHERE
+          (h."Tabla" = 'Carpetas' AND h."RegistroCod" IN (SELECT "Cod" FROM subcarpetas))
+          OR
+          (h."Tabla" = 'Archivos' AND h."RegistroCod" IN (SELECT "Cod" FROM archivos_expediente))
+      ORDER BY h."Fecha" DESC;
+  END;
+  $$;
+
+
+--
 -- Name: F_ObtenerConsecutivoRadicado(bigint, character varying, integer); Type: FUNCTION; Schema: documentos; Owner: -
 --
 
@@ -2166,6 +2422,38 @@ $$;
 --
 
 COMMENT ON FUNCTION documentos."F_ObtenerConsecutivoRadicado"(p_entidad bigint, p_tipocomunicacion character varying, p_anio integer) IS 'Obtiene el siguiente consecutivo de radicado de forma atómica (thread-safe)';
+
+
+--
+-- Name: F_ObtenerExpedienteContenedor(bigint); Type: FUNCTION; Schema: documentos; Owner: -
+--
+
+CREATE FUNCTION documentos."F_ObtenerExpedienteContenedor"(p_carpeta_id bigint) RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
+  DECLARE
+      v_expediente_id BIGINT;
+  BEGIN
+      WITH RECURSIVE jerarquia AS (
+          SELECT "Cod", "CarpetaPadre", "TipoCarpeta"
+          FROM documentos."Carpetas"
+          WHERE "Cod" = p_carpeta_id AND "Estado" = true
+
+          UNION ALL
+
+          SELECT c."Cod", c."CarpetaPadre", c."TipoCarpeta"
+          FROM documentos."Carpetas" c
+          INNER JOIN jerarquia j ON c."Cod" = j."CarpetaPadre"
+          WHERE c."Estado" = true
+      )
+      SELECT "Cod" INTO v_expediente_id
+      FROM jerarquia
+      WHERE "TipoCarpeta" = 3
+      LIMIT 1;
+
+      RETURN v_expediente_id;
+  END;
+  $$;
 
 
 --
@@ -4681,14 +4969,19 @@ CREATE TABLE documentos."Tablas_Retencion_Documental" (
     "Nombre" character varying(200),
     "Tipo" character varying(50),
     "MesesVigencia" bigint,
-    "Codigo" bigint,
+    "Codigo" character varying(20),
     "TRDPadre" bigint,
     "Entidad" bigint,
     "DisposicionFinal" character varying(50),
     "TiempoGestion" bigint,
     "TiempoCentral" bigint,
     "Procedimiento" character varying(500),
-    "Estado" boolean DEFAULT true NOT NULL
+    "Estado" boolean DEFAULT true NOT NULL,
+    "Descripcion" character varying(500),
+    "CreadoPor" bigint,
+    "FechaCreacion" timestamp without time zone DEFAULT now(),
+    "ModificadoPor" bigint,
+    "FechaModificacion" timestamp without time zone
 );
 
 
@@ -5556,7 +5849,7 @@ CREATE VIEW documentos."V_TRD_Jerarquia" AS
             t."Procedimiento",
             t."Estado",
             (a."Nivel" + 1),
-            ((((a."RutaCodigo")::text || '.'::text) || ((t."Codigo")::character varying(20))::text))::character varying(100) AS "varchar",
+            ((((a."RutaCodigo")::text || '.'::text) || (t."Codigo")::text))::character varying(100) AS "varchar",
             ((((a."RutaNombre")::text || ' > '::text) || (t."Nombre")::text))::character varying(500) AS "varchar"
            FROM (documentos."Tablas_Retencion_Documental" t
              JOIN "TRD_Arbol" a ON ((t."TRDPadre" = a."Cod")))
@@ -5587,7 +5880,8 @@ CREATE VIEW documentos."V_TRD_Jerarquia" AS
 -- Name: VIEW "V_TRD_Jerarquia"; Type: COMMENT; Schema: documentos; Owner: -
 --
 
-COMMENT ON VIEW documentos."V_TRD_Jerarquia" IS 'Árbol completo de TRD con rutas y niveles calculados';
+COMMENT ON VIEW documentos."V_TRD_Jerarquia" IS 'Árbol completo de TRD con rutas y niveles
+   calculados';
 
 
 --
@@ -5622,7 +5916,8 @@ CREATE VIEW documentos."V_Oficinas_Series" AS
 -- Name: VIEW "V_Oficinas_Series"; Type: COMMENT; Schema: documentos; Owner: -
 --
 
-COMMENT ON VIEW documentos."V_Oficinas_Series" IS 'Series y Subseries accesibles por cada oficina con permisos';
+COMMENT ON VIEW documentos."V_Oficinas_Series" IS 'Series y Subseries accesibles por cada 
+  oficina con permisos';
 
 
 --
@@ -6202,29 +6497,109 @@ ALTER TABLE ONLY usuarios."BasesDatos" ALTER COLUMN "Cod" SET DEFAULT nextval('u
 --
 
 COPY documentos."Archivos" ("Cod", "Nombre", "Carpeta", "Copia", "ArchivoOrginal", "Firmado", "FimarPor", "FirmadoPor", "Ruta", "TipoArchivo", "Formato", "NumeroHojas", "Duracion", "Tamaño", "Estado", "Indice", "FechaDocumento", "FechaIncorporacion", "OrigenDocumento", "Hash", "AlgoritmoHash", "TipoDocumental", "Observaciones", "SubidoPor", "FechaFirma", "TipoFirma", "CertificadoFirma", "PaginaInicio", "PaginaFin", "Version", "Descripcion", "FechaVerificacionIntegridad", "ResultadoVerificacion", "Metadatos", "CodigoDocumento", "FechaModificacion", "EstadoUpload", "ContentType") FROM stdin;
-1	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260121065651_a789380c_parte 2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 01:56:52.198718	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-2	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122005347_d80b5e5d_parte 2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 19:53:48.019525	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-3	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122034318_9bb9b9d7_parte 2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 22:43:19.634973	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-4	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122034613_5034310e_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 22:46:13.85802	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-5	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122035505_950710d2_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 22:55:06.407104	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-6	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122040200_6d2ee147_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:02:01.676886	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-7	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122041333_22c2ffaf_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:13:34.136394	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-8	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122041636_f943b644_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:16:37.122549	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-9	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122042354_2ef5fb89_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:23:54.967098	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-10	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043037_848bf899_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:30:37.967128	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-11	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043840_2aaf1ab9_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:38:40.93034	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-12	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043923_89c7e623_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-21 23:39:23.117186	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-13	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122050134_be72b98a_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 00:01:35.385562	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-14	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122050843_436e7e52_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 00:08:44.168455	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-15	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122051406_4904947f_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 00:14:07.418949	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-16	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122123744_df41e031_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 07:37:44.990794	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-17	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122124329_eb50632e_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 07:43:30.002982	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-18	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122131053_9082bca4_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 08:10:54.111463	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-19	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122131612_b65e5c4a_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 08:16:13.241469	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-20	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134658_3d61e214_parte_2.docx	\N	\N	\N	\N	17907	t	0	\N	2026-01-22 08:46:59.167065	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 08:47:20.766474	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
-21	softsolutions20223-nublusoftapi-8a5edab282632443.txt	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134808_a42888a9_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	t	0	\N	2026-01-22 08:48:08.365027	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 08:48:17.611854	COMPLETADO	text/plain
-22	Grabación de pantalla 2025-11-01 155406.mp4	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134902_3aa74a1b_Grabación_de_pantalla_2025-11-01_155406.mp4	\N	\N	\N	\N	114191082	t	0	\N	2026-01-22 08:49:02.451382	\N	f93c843c59d534e44c6a61921fc215ea37eaabb8cb4c9d995e762a30560f44b0	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 08:49:39.065724	COMPLETADO	video/mp4
-23	guia_firma_notificaciones_parte6.txt	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122184452_9ebaec6e_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	t	0	\N	2026-01-22 13:44:52.448426	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 13:44:54.443422	COMPLETADO	text/plain
+103	20251126150603354_page-0001.jpg	1	f	\N	f	\N	\N	entidad_1/carpeta_1/20260123184951_56d584ac_20251126150603354_page-0001.jpg	\N	\N	\N	\N	2553977	t	0	\N	2026-01-23 13:49:51.27474	\N	6ef3c49d0b0bd693bfe2c9083373484fa18560c0df2f99d70012979aa105841d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:49:53.853215	COMPLETADO	image/jpeg
+25	softsolutions20223-nublusoftapi-8a5edab282632443.txt	1	f	\N	f	\N	\N	entidad_1/carpeta_1/20260122225557_5ede35b2_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	t	0	\N	2026-01-22 17:55:57.372309	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 17:55:59.380237	COMPLETADO	text/plain
+26	NubluSoft_API_Completa_postman_collection.json	1	f	\N	f	\N	\N	entidad_1/carpeta_1/20260122230753_d334d864_NubluSoft_API_Completa_postman_collection.json	\N	\N	\N	\N	87419	t	0	\N	2026-01-22 18:07:54.077905	\N	df739a9011a5e680ccb18866e153b993c98b5976bee0ec9953b3a1dcbb79ca05	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 18:07:55.921636	COMPLETADO	application/json
+27	MAPEO_APIS_INTERFACES.md	1	f	\N	f	\N	\N	entidad_1/carpeta_1/20260122233903_500e6768_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	t	0	\N	2026-01-22 18:39:03.429087	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-22 18:39:05.364321	COMPLETADO	application/octet-stream
+40	softsolutions20223-nublusoftapi-8a5edab282632443.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181709_75a22077_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-23 13:17:10.263055	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+41	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181712_3fed34a2_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	\N	\N	\N	\N	22194	f	0	\N	2026-01-23 13:17:12.829834	\N	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	application/octet-stream
+42	MAPEO_APIS_INTERFACES.md	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181714_648706d2_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	f	0	\N	2026-01-23 13:17:14.210575	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	application/octet-stream
+43	parte 2.docx	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181715_d23e3565_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-23 13:17:15.581339	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+44	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181716_caa373a2_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	\N	\N	\N	\N	118729	f	0	\N	2026-01-23 13:17:16.910837	\N	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+45	guia_firma_notificaciones_parte6.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181718_84e3ec85_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-23 13:17:18.549195	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+46	guia_firma_notificaciones_parte3.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181719_8c57f5cf_guia_firma_notificaciones_parte3.txt	\N	\N	\N	\N	25830	f	0	\N	2026-01-23 13:17:20.048168	\N	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+47	guia_firma_notificaciones_parte5.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181721_e98ee730_guia_firma_notificaciones_parte5.txt	\N	\N	\N	\N	17575	f	0	\N	2026-01-23 13:17:21.416493	\N	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+48	guia_firma_notificaciones_parte4.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181722_2d6e2669_guia_firma_notificaciones_parte4.txt	\N	\N	\N	\N	16681	f	0	\N	2026-01-23 13:17:22.801661	\N	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+49	guia_firma_notificaciones_parte2.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181724_ef57f446_guia_firma_notificaciones_parte2.txt	\N	\N	\N	\N	15890	f	0	\N	2026-01-23 13:17:24.099954	\N	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+50	guia_firma_notificaciones_parte1.txt	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181725_2bd243fa_guia_firma_notificaciones_parte1.txt	\N	\N	\N	\N	14361	f	0	\N	2026-01-23 13:17:25.399703	\N	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	text/plain
+51	analog-period-389922-7b9f19681b38.json	5	f	\N	f	\N	\N	entidad_1/carpeta_5/20260123181726_43352a57_analog-period-389922-7b9f19681b38.json	\N	\N	\N	\N	2388	f	0	\N	2026-01-23 13:17:26.821587	\N	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:58.888824	COMPLETADO	application/json
+1	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260121065651_a789380c_parte 2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 01:56:52.198718	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+2	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122005347_d80b5e5d_parte 2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 19:53:48.019525	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+3	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122034318_9bb9b9d7_parte 2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 22:43:19.634973	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+4	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122034613_5034310e_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 22:46:13.85802	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+5	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122035505_950710d2_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 22:55:06.407104	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+6	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122040200_6d2ee147_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:02:01.676886	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+7	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122041333_22c2ffaf_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:13:34.136394	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+8	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122041636_f943b644_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:16:37.122549	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+9	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122042354_2ef5fb89_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:23:54.967098	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+10	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043037_848bf899_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:30:37.967128	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+11	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043840_2aaf1ab9_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:38:40.93034	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+12	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122043923_89c7e623_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-21 23:39:23.117186	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+13	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122050134_be72b98a_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 00:01:35.385562	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+14	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122050843_436e7e52_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 00:08:44.168455	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+15	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122051406_4904947f_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 00:14:07.418949	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+16	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122123744_df41e031_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 07:37:44.990794	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+17	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122124329_eb50632e_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 07:43:30.002982	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+18	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122131053_9082bca4_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 08:10:54.111463	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+19	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122131612_b65e5c4a_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 08:16:13.241469	\N	\N	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	PENDIENTE	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+20	parte 2.docx	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134658_3d61e214_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-22 08:46:59.167065	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+21	softsolutions20223-nublusoftapi-8a5edab282632443.txt	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134808_a42888a9_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-22 08:48:08.365027	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+22	Grabación de pantalla 2025-11-01 155406.mp4	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122134902_3aa74a1b_Grabación_de_pantalla_2025-11-01_155406.mp4	\N	\N	\N	\N	114191082	f	0	\N	2026-01-22 08:49:02.451382	\N	f93c843c59d534e44c6a61921fc215ea37eaabb8cb4c9d995e762a30560f44b0	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	video/mp4
+23	guia_firma_notificaciones_parte6.txt	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122184452_9ebaec6e_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-22 13:44:52.448426	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+24	SQLServer2022-x64-ESN-Dev.iso	2	f	\N	f	\N	\N	entidad_1/carpeta_2/20260122223437_6c5589d5_SQLServer2022-x64-ESN-Dev.iso	\N	\N	\N	\N	1363390464	f	0	\N	2026-01-22 17:34:37.768932	\N	90aae7672be0485274a1a0fd77d9102c38b80dddf60f47f50f01f3ed2211861f	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+28	softsolutions20223-nublusoftapi-8a5edab282632443.txt	3	f	\N	f	\N	\N	entidad_1/carpeta_1/20260122225557_5ede35b2_softsolutions20223-nublusoftapi-8a5edab282632443_copy_639047800763206655.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-23 10:47:57.556076	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+52	softsolutions20223-nublusoftapi-8a5edab282632443.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182441_f8ebcef0_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-23 13:24:41.264247	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+53	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182443_a00287cb_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	\N	\N	\N	\N	22194	f	0	\N	2026-01-23 13:24:44.025568	\N	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+54	MAPEO_APIS_INTERFACES.md	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182445_560a985c_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	f	0	\N	2026-01-23 13:24:45.434075	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+55	parte 2.docx	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182446_560e8ba9_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-23 13:24:46.891697	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+56	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182448_80e66570_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	\N	\N	\N	\N	118729	f	0	\N	2026-01-23 13:24:48.327984	\N	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+57	guia_firma_notificaciones_parte6.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182449_efdf28b8_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-23 13:24:49.99492	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+58	guia_firma_notificaciones_parte3.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182451_bb7c5f6e_guia_firma_notificaciones_parte3.txt	\N	\N	\N	\N	25830	f	0	\N	2026-01-23 13:24:51.446168	\N	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+59	guia_firma_notificaciones_parte5.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182452_fbe5dd0b_guia_firma_notificaciones_parte5.txt	\N	\N	\N	\N	17575	f	0	\N	2026-01-23 13:24:52.625499	\N	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+60	guia_firma_notificaciones_parte4.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182453_0e73ba23_guia_firma_notificaciones_parte4.txt	\N	\N	\N	\N	16681	f	0	\N	2026-01-23 13:24:53.805635	\N	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+61	guia_firma_notificaciones_parte2.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182454_67c57f4d_guia_firma_notificaciones_parte2.txt	\N	\N	\N	\N	15890	f	0	\N	2026-01-23 13:24:54.907917	\N	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+62	guia_firma_notificaciones_parte1.txt	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182455_8df4c057_guia_firma_notificaciones_parte1.txt	\N	\N	\N	\N	14361	f	0	\N	2026-01-23 13:24:56.038352	\N	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+63	analog-period-389922-7b9f19681b38.json	4	f	\N	f	\N	\N	entidad_1/carpeta_4/20260123182457_662749b7_analog-period-389922-7b9f19681b38.json	\N	\N	\N	\N	2388	f	0	\N	2026-01-23 13:24:57.158435	\N	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/json
+64	softsolutions20223-nublusoftapi-8a5edab282632443.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183555_3862b75c_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-23 13:35:56.12126	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+65	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183558_f6a15804_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	\N	\N	\N	\N	22194	f	0	\N	2026-01-23 13:35:58.38058	\N	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+66	MAPEO_APIS_INTERFACES.md	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183559_23604b53_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	f	0	\N	2026-01-23 13:35:59.501367	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+67	parte 2.docx	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183600_dac770b4_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-23 13:36:00.661969	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+68	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183601_8ac79637_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	\N	\N	\N	\N	118729	f	0	\N	2026-01-23 13:36:01.732782	\N	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+69	guia_firma_notificaciones_parte6.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183603_ccacff3c_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-23 13:36:03.031927	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+70	guia_firma_notificaciones_parte3.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183604_87c69052_guia_firma_notificaciones_parte3.txt	\N	\N	\N	\N	25830	f	0	\N	2026-01-23 13:36:04.129627	\N	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+71	guia_firma_notificaciones_parte5.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183605_0f52052b_guia_firma_notificaciones_parte5.txt	\N	\N	\N	\N	17575	f	0	\N	2026-01-23 13:36:05.215336	\N	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+72	guia_firma_notificaciones_parte4.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183606_b55f1b82_guia_firma_notificaciones_parte4.txt	\N	\N	\N	\N	16681	f	0	\N	2026-01-23 13:36:06.258751	\N	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+73	guia_firma_notificaciones_parte2.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183607_adcd9830_guia_firma_notificaciones_parte2.txt	\N	\N	\N	\N	15890	f	0	\N	2026-01-23 13:36:07.33173	\N	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+74	guia_firma_notificaciones_parte1.txt	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183608_f107e16a_guia_firma_notificaciones_parte1.txt	\N	\N	\N	\N	14361	f	0	\N	2026-01-23 13:36:08.41089	\N	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+75	analog-period-389922-7b9f19681b38.json	6	f	\N	f	\N	\N	entidad_1/carpeta_6/20260123183609_ef51a73e_analog-period-389922-7b9f19681b38.json	\N	\N	\N	\N	2388	f	0	\N	2026-01-23 13:36:09.448146	\N	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/json
+88	Solicitud de Vinculacion - ID  CC  29543587 - No Solicitud  1376549 -.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184505_11f0e4c5_Solicitud_de_Vinculacion_-_ID__CC__29543587_-_No_S.pdf	\N	\N	\N	\N	763170	f	0	\N	2026-01-23 13:45:06.077935	\N	79465a35f97d1a2634a164823f86fe723ea2dca12fb61441d390e9e8bf6cc48a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+91	2118716946363 (2) (1).pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184512_f973bf7c_2118716946363_(2)_(1).pdf	\N	\N	\N	\N	573254	f	0	\N	2026-01-23 13:45:12.492892	\N	47a2d60b92ece8db98da0c07850c3befb935799cf32c22756946a37aff62187d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+94	2118716946363.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184518_37b29920_2118716946363.pdf	\N	\N	\N	\N	569037	f	0	\N	2026-01-23 13:45:18.361584	\N	3012452b3c662cc38766b3c6b4d25215f54fe21991d66b2908e4af50f58e9032	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+76	softsolutions20223-nublusoftapi-8a5edab282632443.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184042_77f71991_softsolutions20223-nublusoftapi-8a5edab282632443.txt	\N	\N	\N	\N	1243529	f	0	\N	2026-01-23 13:40:43.076907	\N	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+77	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184045_3d7bb3aa_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	\N	\N	\N	\N	22194	f	0	\N	2026-01-23 13:40:45.748504	\N	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+89	Autorizacion de Desembolso - ID  CC  29543587 - No Solicitud  1376549 -.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184508_22b492ac_Autorizacion_de_Desembolso_-_ID__CC__29543587_-_No.pdf	\N	\N	\N	\N	719342	f	0	\N	2026-01-23 13:45:08.656177	\N	4239aa69fa16d590330cbc49c4af2c7632e5952fc93a29d2eaf2f2fafdfb0a65	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+78	MAPEO_APIS_INTERFACES.md	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184046_3aa0765b_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	f	0	\N	2026-01-23 13:40:46.91525	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+79	parte 2.docx	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184048_4624ff90_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-23 13:40:48.310856	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+90	2118644388827.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184510_c832dfaa_2118644388827.pdf	\N	\N	\N	\N	573295	f	0	\N	2026-01-23 13:45:10.748947	\N	b0d267132359fd08ec1d50b413243d88aede35b84da1454846df0bea1d6e52b8	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+80	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184049_ea09f3b6_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	\N	\N	\N	\N	118729	f	0	\N	2026-01-23 13:40:49.706222	\N	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+81	guia_firma_notificaciones_parte6.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184051_9468de7c_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-23 13:40:51.292453	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+82	guia_firma_notificaciones_parte3.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184053_e75a3e8e_guia_firma_notificaciones_parte3.txt	\N	\N	\N	\N	25830	f	0	\N	2026-01-23 13:40:53.309021	\N	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+92	2118716946363 (2).pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184514_d1f51a40_2118716946363_(2).pdf	\N	\N	\N	\N	573254	f	0	\N	2026-01-23 13:45:14.480866	\N	47a2d60b92ece8db98da0c07850c3befb935799cf32c22756946a37aff62187d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+83	guia_firma_notificaciones_parte5.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184054_9a58ef68_guia_firma_notificaciones_parte5.txt	\N	\N	\N	\N	17575	f	0	\N	2026-01-23 13:40:54.743469	\N	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+93	2118719064580.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184516_547aee1a_2118719064580.pdf	\N	\N	\N	\N	573127	f	0	\N	2026-01-23 13:45:16.416278	\N	942da43d7c4fee278b4c75d058644963b319636577afdc983cf92baf5968d296	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+84	guia_firma_notificaciones_parte4.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184056_e995117c_guia_firma_notificaciones_parte4.txt	\N	\N	\N	\N	16681	f	0	\N	2026-01-23 13:40:56.307086	\N	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+85	guia_firma_notificaciones_parte2.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184057_ad9dbe91_guia_firma_notificaciones_parte2.txt	\N	\N	\N	\N	15890	f	0	\N	2026-01-23 13:40:57.799298	\N	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+86	guia_firma_notificaciones_parte1.txt	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184059_bd4c1573_guia_firma_notificaciones_parte1.txt	\N	\N	\N	\N	14361	f	0	\N	2026-01-23 13:40:59.210778	\N	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+95	2118716946363 (1).pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184520_faff2ff4_2118716946363_(1).pdf	\N	\N	\N	\N	568799	f	0	\N	2026-01-23 13:45:20.33323	\N	2bfb2d4d50a8173442fe508f2813f8a97aa93a9966f981e885efacca10db4be9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+87	analog-period-389922-7b9f19681b38.json	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184100_cfed72b9_analog-period-389922-7b9f19681b38.json	\N	\N	\N	\N	2388	f	0	\N	2026-01-23 13:41:00.594025	\N	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/json
+96	Solicitud de Productos - ID  CC  29543587 - No Solicitud  1376549 -.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184522_558d915b_Solicitud_de_Productos_-_ID__CC__29543587_-_No_Sol.pdf	\N	\N	\N	\N	542436	f	0	\N	2026-01-23 13:45:22.329397	\N	aafd037080e3441057261bc6560c446b8ba0ac48c7f4b2ee68258596f072b344	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+97	WhatsApp Image 2025-11-27 at 14.08.16.jpeg	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184524_22571c86_WhatsApp_Image_2025-11-27_at_14.08.16.jpeg	\N	\N	\N	\N	492103	f	0	\N	2026-01-23 13:45:24.364395	\N	ff75905a8667a632b179d43c821306c7a587235828fc439f78c9a730bba62c02	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	image/jpeg
+98	4-1231756227932394029_Autorizacion_de_Desembolso.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184526_e61e77c6_4-1231756227932394029_Autorizacion_de_Desembolso.pdf	\N	\N	\N	\N	450184	f	0	\N	2026-01-23 13:45:26.232035	\N	54905f0544d3119c65aa89ff4e70b0e49c2cb12395704a317220ffae4316a4bd	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+99	T-2025142584-5840300.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184528_aca60db1_T-2025142584-5840300.pdf	\N	\N	\N	\N	373822	f	0	\N	2026-01-23 13:45:28.158106	\N	0214cca290728f4248bf92b3a7eebe89e673b25763667821b61821a62c489632	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+100	4-1231756227932394029E0909_Respuesta_1_RESP_FINAL_SFC.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184530_257e1bbd_4-1231756227932394029E0909_Respuesta_1_RESP_FINAL_.pdf	\N	\N	\N	\N	214032	f	0	\N	2026-01-23 13:45:30.077556	\N	02addf1c3f9f64c0d8de1ec5e11cab19244fbd118ce31ee586c6cdcdeae685bc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+101	4-1231756227932394029_Respuesta_RESP_FINAL_SFC.pdf	8	f	\N	f	\N	\N	entidad_1/carpeta_8/20260123184531_4c75df1a_4-1231756227932394029_Respuesta_RESP_FINAL_SFC.pdf	\N	\N	\N	\N	214028	f	0	\N	2026-01-23 13:45:31.918643	\N	5fb087fd77878f41f485d30efede1f9e9e00d4542e92bd7568e7cf90cd134123	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/pdf
+29	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180838_8b6e510e_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	\N	\N	\N	\N	22194	f	0	\N	2026-01-23 13:08:39.263607	\N	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+30	MAPEO_APIS_INTERFACES.md	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180841_066c531a_MAPEO_APIS_INTERFACES.md	\N	\N	\N	\N	20797	f	0	\N	2026-01-23 13:08:41.603804	\N	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/octet-stream
+31	parte 2.docx	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180842_4d7b47a2_parte_2.docx	\N	\N	\N	\N	17907	f	0	\N	2026-01-23 13:08:42.746082	\N	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/vnd.openxmlformats-officedocument.wordprocessingml.document
+32	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180844_94f4c169_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	\N	\N	\N	\N	118729	f	0	\N	2026-01-23 13:08:44.187682	\N	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+33	guia_firma_notificaciones_parte6.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180845_2253f130_guia_firma_notificaciones_parte6.txt	\N	\N	\N	\N	28392	f	0	\N	2026-01-23 13:08:45.812031	\N	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+34	guia_firma_notificaciones_parte3.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180847_d9705707_guia_firma_notificaciones_parte3.txt	\N	\N	\N	\N	25830	f	0	\N	2026-01-23 13:08:47.258373	\N	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+35	guia_firma_notificaciones_parte5.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180848_4f0d4657_guia_firma_notificaciones_parte5.txt	\N	\N	\N	\N	17575	f	0	\N	2026-01-23 13:08:48.729956	\N	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+36	guia_firma_notificaciones_parte4.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180849_f1fac361_guia_firma_notificaciones_parte4.txt	\N	\N	\N	\N	16681	f	0	\N	2026-01-23 13:08:49.894538	\N	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+37	guia_firma_notificaciones_parte2.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180851_b17115e2_guia_firma_notificaciones_parte2.txt	\N	\N	\N	\N	15890	f	0	\N	2026-01-23 13:08:51.248799	\N	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+38	guia_firma_notificaciones_parte1.txt	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180852_edbde665_guia_firma_notificaciones_parte1.txt	\N	\N	\N	\N	14361	f	0	\N	2026-01-23 13:08:52.629322	\N	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	text/plain
+39	analog-period-389922-7b9f19681b38.json	9	f	\N	f	\N	\N	entidad_1/carpeta_9/20260123180853_3dd818e6_analog-period-389922-7b9f19681b38.json	\N	\N	\N	\N	2388	f	0	\N	2026-01-23 13:08:54.012369	\N	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:47:52.689689	COMPLETADO	application/json
+102	2118644388827 (1).pdf	1	f	\N	f	\N	\N	entidad_1/carpeta_1/20260123184810_6a34318b_2118644388827_(1).pdf	\N	\N	\N	\N	573295	t	0	\N	2026-01-23 13:48:10.827022	\N	b0d267132359fd08ec1d50b413243d88aede35b84da1454846df0bea1d6e52b8	SHA256	\N	\N	1	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	2026-01-23 13:48:13.088134	COMPLETADO	application/pdf
 \.
 
 
@@ -6233,6 +6608,104 @@ COPY documentos."Archivos" ("Cod", "Nombre", "Carpeta", "Copia", "ArchivoOrginal
 --
 
 COPY documentos."Archivos_Eliminados" ("Cod", "Nombre", "Ruta", "FechaEliminacion", "Carpeta", "Formato", "EliminadoPor", "MotivoEliminacion", "Hash", "Tamaño", "CarpetaCod") FROM stdin;
+1	parte 2.docx	entidad_1/carpeta_2/20260121065651_a789380c_parte 2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+2	parte 2.docx	entidad_1/carpeta_2/20260122005347_d80b5e5d_parte 2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+3	parte 2.docx	entidad_1/carpeta_2/20260122034318_9bb9b9d7_parte 2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+4	parte 2.docx	entidad_1/carpeta_2/20260122034613_5034310e_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+5	parte 2.docx	entidad_1/carpeta_2/20260122035505_950710d2_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+6	parte 2.docx	entidad_1/carpeta_2/20260122040200_6d2ee147_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+7	parte 2.docx	entidad_1/carpeta_2/20260122041333_22c2ffaf_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+8	parte 2.docx	entidad_1/carpeta_2/20260122041636_f943b644_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+9	parte 2.docx	entidad_1/carpeta_2/20260122042354_2ef5fb89_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+10	parte 2.docx	entidad_1/carpeta_2/20260122043037_848bf899_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+11	parte 2.docx	entidad_1/carpeta_2/20260122043840_2aaf1ab9_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+12	parte 2.docx	entidad_1/carpeta_2/20260122043923_89c7e623_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+13	parte 2.docx	entidad_1/carpeta_2/20260122050134_be72b98a_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+14	parte 2.docx	entidad_1/carpeta_2/20260122050843_436e7e52_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+15	parte 2.docx	entidad_1/carpeta_2/20260122051406_4904947f_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+16	parte 2.docx	entidad_1/carpeta_2/20260122123744_df41e031_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+17	parte 2.docx	entidad_1/carpeta_2/20260122124329_eb50632e_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+18	parte 2.docx	entidad_1/carpeta_2/20260122131053_9082bca4_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+19	parte 2.docx	entidad_1/carpeta_2/20260122131612_b65e5c4a_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	\N	17907	2
+20	parte 2.docx	entidad_1/carpeta_2/20260122134658_3d61e214_parte_2.docx	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	2
+21	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_2/20260122134808_a42888a9_softsolutions20223-nublusoftapi-8a5edab282632443.txt	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	2
+22	Grabación de pantalla 2025-11-01 155406.mp4	entidad_1/carpeta_2/20260122134902_3aa74a1b_Grabación_de_pantalla_2025-11-01_155406.mp4	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	f93c843c59d534e44c6a61921fc215ea37eaabb8cb4c9d995e762a30560f44b0	114191082	2
+23	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_2/20260122184452_9ebaec6e_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	2
+24	SQLServer2022-x64-ESN-Dev.iso	entidad_1/carpeta_2/20260122223437_6c5589d5_SQLServer2022-x64-ESN-Dev.iso	2026-01-23 13:47:52.689689	otro	\N	1	Eliminado con carpeta: otro	90aae7672be0485274a1a0fd77d9102c38b80dddf60f47f50f01f3ed2211861f	1363390464	2
+28	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_1/20260122225557_5ede35b2_softsolutions20223-nublusoftapi-8a5edab282632443_copy_639047800763206655.txt	2026-01-23 13:47:52.689689	nuevaa	\N	1	Eliminado con carpeta: nuevaa	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	3
+52	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_4/20260123182441_f8ebcef0_softsolutions20223-nublusoftapi-8a5edab282632443.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	4
+53	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	entidad_1/carpeta_4/20260123182443_a00287cb_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	22194	4
+54	MAPEO_APIS_INTERFACES.md	entidad_1/carpeta_4/20260123182445_560a985c_MAPEO_APIS_INTERFACES.md	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	20797	4
+55	parte 2.docx	entidad_1/carpeta_4/20260123182446_560e8ba9_parte_2.docx	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	4
+56	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	entidad_1/carpeta_4/20260123182448_80e66570_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	118729	4
+57	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_4/20260123182449_efdf28b8_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	4
+58	guia_firma_notificaciones_parte3.txt	entidad_1/carpeta_4/20260123182451_bb7c5f6e_guia_firma_notificaciones_parte3.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	25830	4
+59	guia_firma_notificaciones_parte5.txt	entidad_1/carpeta_4/20260123182452_fbe5dd0b_guia_firma_notificaciones_parte5.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	17575	4
+60	guia_firma_notificaciones_parte4.txt	entidad_1/carpeta_4/20260123182453_0e73ba23_guia_firma_notificaciones_parte4.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	16681	4
+61	guia_firma_notificaciones_parte2.txt	entidad_1/carpeta_4/20260123182454_67c57f4d_guia_firma_notificaciones_parte2.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	15890	4
+62	guia_firma_notificaciones_parte1.txt	entidad_1/carpeta_4/20260123182455_8df4c057_guia_firma_notificaciones_parte1.txt	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	14361	4
+63	analog-period-389922-7b9f19681b38.json	entidad_1/carpeta_4/20260123182457_662749b7_analog-period-389922-7b9f19681b38.json	2026-01-23 13:47:52.689689	otraaaa	\N	1	Eliminado con carpeta: otraaaa	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	2388	4
+64	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_6/20260123183555_3862b75c_softsolutions20223-nublusoftapi-8a5edab282632443.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	6
+65	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	entidad_1/carpeta_6/20260123183558_f6a15804_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	22194	6
+66	MAPEO_APIS_INTERFACES.md	entidad_1/carpeta_6/20260123183559_23604b53_MAPEO_APIS_INTERFACES.md	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	20797	6
+67	parte 2.docx	entidad_1/carpeta_6/20260123183600_dac770b4_parte_2.docx	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	6
+68	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	entidad_1/carpeta_6/20260123183601_8ac79637_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	118729	6
+69	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_6/20260123183603_ccacff3c_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	6
+70	guia_firma_notificaciones_parte3.txt	entidad_1/carpeta_6/20260123183604_87c69052_guia_firma_notificaciones_parte3.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	25830	6
+71	guia_firma_notificaciones_parte5.txt	entidad_1/carpeta_6/20260123183605_0f52052b_guia_firma_notificaciones_parte5.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	17575	6
+72	guia_firma_notificaciones_parte4.txt	entidad_1/carpeta_6/20260123183606_b55f1b82_guia_firma_notificaciones_parte4.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	16681	6
+73	guia_firma_notificaciones_parte2.txt	entidad_1/carpeta_6/20260123183607_adcd9830_guia_firma_notificaciones_parte2.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	15890	6
+74	guia_firma_notificaciones_parte1.txt	entidad_1/carpeta_6/20260123183608_f107e16a_guia_firma_notificaciones_parte1.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	14361	6
+75	analog-period-389922-7b9f19681b38.json	entidad_1/carpeta_6/20260123183609_ef51a73e_analog-period-389922-7b9f19681b38.json	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	2388	6
+88	Solicitud de Vinculacion - ID  CC  29543587 - No Solicitud  1376549 -.pdf	entidad_1/carpeta_8/20260123184505_11f0e4c5_Solicitud_de_Vinculacion_-_ID__CC__29543587_-_No_S.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	79465a35f97d1a2634a164823f86fe723ea2dca12fb61441d390e9e8bf6cc48a	763170	8
+91	2118716946363 (2) (1).pdf	entidad_1/carpeta_8/20260123184512_f973bf7c_2118716946363_(2)_(1).pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	47a2d60b92ece8db98da0c07850c3befb935799cf32c22756946a37aff62187d	573254	8
+94	2118716946363.pdf	entidad_1/carpeta_8/20260123184518_37b29920_2118716946363.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	3012452b3c662cc38766b3c6b4d25215f54fe21991d66b2908e4af50f58e9032	569037	8
+76	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_8/20260123184042_77f71991_softsolutions20223-nublusoftapi-8a5edab282632443.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	8
+77	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	entidad_1/carpeta_8/20260123184045_3d7bb3aa_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	22194	8
+89	Autorizacion de Desembolso - ID  CC  29543587 - No Solicitud  1376549 -.pdf	entidad_1/carpeta_8/20260123184508_22b492ac_Autorizacion_de_Desembolso_-_ID__CC__29543587_-_No.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	4239aa69fa16d590330cbc49c4af2c7632e5952fc93a29d2eaf2f2fafdfb0a65	719342	8
+78	MAPEO_APIS_INTERFACES.md	entidad_1/carpeta_8/20260123184046_3aa0765b_MAPEO_APIS_INTERFACES.md	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	20797	8
+79	parte 2.docx	entidad_1/carpeta_8/20260123184048_4624ff90_parte_2.docx	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	8
+90	2118644388827.pdf	entidad_1/carpeta_8/20260123184510_c832dfaa_2118644388827.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	b0d267132359fd08ec1d50b413243d88aede35b84da1454846df0bea1d6e52b8	573295	8
+80	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	entidad_1/carpeta_8/20260123184049_ea09f3b6_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	118729	8
+81	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_8/20260123184051_9468de7c_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	8
+82	guia_firma_notificaciones_parte3.txt	entidad_1/carpeta_8/20260123184053_e75a3e8e_guia_firma_notificaciones_parte3.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	25830	8
+92	2118716946363 (2).pdf	entidad_1/carpeta_8/20260123184514_d1f51a40_2118716946363_(2).pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	47a2d60b92ece8db98da0c07850c3befb935799cf32c22756946a37aff62187d	573254	8
+83	guia_firma_notificaciones_parte5.txt	entidad_1/carpeta_8/20260123184054_9a58ef68_guia_firma_notificaciones_parte5.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	17575	8
+93	2118719064580.pdf	entidad_1/carpeta_8/20260123184516_547aee1a_2118719064580.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	942da43d7c4fee278b4c75d058644963b319636577afdc983cf92baf5968d296	573127	8
+84	guia_firma_notificaciones_parte4.txt	entidad_1/carpeta_8/20260123184056_e995117c_guia_firma_notificaciones_parte4.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	16681	8
+85	guia_firma_notificaciones_parte2.txt	entidad_1/carpeta_8/20260123184057_ad9dbe91_guia_firma_notificaciones_parte2.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	15890	8
+86	guia_firma_notificaciones_parte1.txt	entidad_1/carpeta_8/20260123184059_bd4c1573_guia_firma_notificaciones_parte1.txt	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	14361	8
+95	2118716946363 (1).pdf	entidad_1/carpeta_8/20260123184520_faff2ff4_2118716946363_(1).pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	2bfb2d4d50a8173442fe508f2813f8a97aa93a9966f981e885efacca10db4be9	568799	8
+87	analog-period-389922-7b9f19681b38.json	entidad_1/carpeta_8/20260123184100_cfed72b9_analog-period-389922-7b9f19681b38.json	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	2388	8
+96	Solicitud de Productos - ID  CC  29543587 - No Solicitud  1376549 -.pdf	entidad_1/carpeta_8/20260123184522_558d915b_Solicitud_de_Productos_-_ID__CC__29543587_-_No_Sol.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	aafd037080e3441057261bc6560c446b8ba0ac48c7f4b2ee68258596f072b344	542436	8
+97	WhatsApp Image 2025-11-27 at 14.08.16.jpeg	entidad_1/carpeta_8/20260123184524_22571c86_WhatsApp_Image_2025-11-27_at_14.08.16.jpeg	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	ff75905a8667a632b179d43c821306c7a587235828fc439f78c9a730bba62c02	492103	8
+98	4-1231756227932394029_Autorizacion_de_Desembolso.pdf	entidad_1/carpeta_8/20260123184526_e61e77c6_4-1231756227932394029_Autorizacion_de_Desembolso.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	54905f0544d3119c65aa89ff4e70b0e49c2cb12395704a317220ffae4316a4bd	450184	8
+99	T-2025142584-5840300.pdf	entidad_1/carpeta_8/20260123184528_aca60db1_T-2025142584-5840300.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	0214cca290728f4248bf92b3a7eebe89e673b25763667821b61821a62c489632	373822	8
+100	4-1231756227932394029E0909_Respuesta_1_RESP_FINAL_SFC.pdf	entidad_1/carpeta_8/20260123184530_257e1bbd_4-1231756227932394029E0909_Respuesta_1_RESP_FINAL_.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	02addf1c3f9f64c0d8de1ec5e11cab19244fbd118ce31ee586c6cdcdeae685bc	214032	8
+101	4-1231756227932394029_Respuesta_RESP_FINAL_SFC.pdf	entidad_1/carpeta_8/20260123184531_4c75df1a_4-1231756227932394029_Respuesta_RESP_FINAL_SFC.pdf	2026-01-23 13:47:52.689689	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	5fb087fd77878f41f485d30efede1f9e9e00d4542e92bd7568e7cf90cd134123	214028	8
+29	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	entidad_1/carpeta_9/20260123180838_8b6e510e_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	22194	9
+30	MAPEO_APIS_INTERFACES.md	entidad_1/carpeta_9/20260123180841_066c531a_MAPEO_APIS_INTERFACES.md	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	20797	9
+31	parte 2.docx	entidad_1/carpeta_9/20260123180842_4d7b47a2_parte_2.docx	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	9
+32	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	entidad_1/carpeta_9/20260123180844_94f4c169_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	118729	9
+33	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_9/20260123180845_2253f130_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	9
+34	guia_firma_notificaciones_parte3.txt	entidad_1/carpeta_9/20260123180847_d9705707_guia_firma_notificaciones_parte3.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	25830	9
+35	guia_firma_notificaciones_parte5.txt	entidad_1/carpeta_9/20260123180848_4f0d4657_guia_firma_notificaciones_parte5.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	17575	9
+36	guia_firma_notificaciones_parte4.txt	entidad_1/carpeta_9/20260123180849_f1fac361_guia_firma_notificaciones_parte4.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	16681	9
+37	guia_firma_notificaciones_parte2.txt	entidad_1/carpeta_9/20260123180851_b17115e2_guia_firma_notificaciones_parte2.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	15890	9
+38	guia_firma_notificaciones_parte1.txt	entidad_1/carpeta_9/20260123180852_edbde665_guia_firma_notificaciones_parte1.txt	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	14361	9
+39	analog-period-389922-7b9f19681b38.json	entidad_1/carpeta_9/20260123180853_3dd818e6_analog-period-389922-7b9f19681b38.json	2026-01-23 13:47:52.689689	otraaaa (copia) (copia)	\N	1	Eliminado con carpeta: otraaaa (copia) (copia)	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	2388	9
+40	softsolutions20223-nublusoftapi-8a5edab282632443.txt	entidad_1/carpeta_5/20260123181709_75a22077_softsolutions20223-nublusoftapi-8a5edab282632443.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7f112c36e6d29611633e6afdd95efcb5b73eb9e33f04611a8c91e73eef5b87d9	1243529	5
+41	PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	entidad_1/carpeta_5/20260123181712_3fed34a2_PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	792217066917ffd5c2ee5664d3699531dd5de72feb6f1aebb91d46b7fc242e9d	22194	5
+42	MAPEO_APIS_INTERFACES.md	entidad_1/carpeta_5/20260123181714_648706d2_MAPEO_APIS_INTERFACES.md	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	f4b562845f6984fa9927e56daf87446fc5a26029ec134b9ee831de7f4eea7e9b	20797	5
+43	parte 2.docx	entidad_1/carpeta_5/20260123181715_d23e3565_parte_2.docx	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	652774a35280e20223d766c41fd5785bc59841bfe1641134a1ea416345ee46dc	17907	5
+44	GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	entidad_1/carpeta_5/20260123181716_caa373a2_GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	11f333d2131f43a7e506639bbad538b2cda843e1478404071365600530837e5c	118729	5
+45	guia_firma_notificaciones_parte6.txt	entidad_1/carpeta_5/20260123181718_84e3ec85_guia_firma_notificaciones_parte6.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	42480dc99b3f9273c23cddbd3d90c50b3d4343232dfa60568d68f191812bf490	28392	5
+46	guia_firma_notificaciones_parte3.txt	entidad_1/carpeta_5/20260123181719_8c57f5cf_guia_firma_notificaciones_parte3.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	b8639cb6b6e900942558f4be7f47c1bc8a028b06e373b7985a15f10891cc03d9	25830	5
+47	guia_firma_notificaciones_parte5.txt	entidad_1/carpeta_5/20260123181721_e98ee730_guia_firma_notificaciones_parte5.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	7cf5c1612cfcf5c9060913c184903145042528d8a323fd0430947d777428b5f3	17575	5
+48	guia_firma_notificaciones_parte4.txt	entidad_1/carpeta_5/20260123181722_2d6e2669_guia_firma_notificaciones_parte4.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	e1e3fd8e21d7367a9653126789b058ec8a54db57d84d360a8af6d9071a2cb157	16681	5
+49	guia_firma_notificaciones_parte2.txt	entidad_1/carpeta_5/20260123181724_ef57f446_guia_firma_notificaciones_parte2.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	24f1fc2ef984e706aa3cfb30eb3710adce96aa5b462dbd62a2686e85a869187a	15890	5
+50	guia_firma_notificaciones_parte1.txt	entidad_1/carpeta_5/20260123181725_2bd243fa_guia_firma_notificaciones_parte1.txt	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	669b5d35bee08227f2d32e599ae193258c2ec8a28b34c3a8aeac41dbc571f3a4	14361	5
+51	analog-period-389922-7b9f19681b38.json	entidad_1/carpeta_5/20260123181726_43352a57_analog-period-389922-7b9f19681b38.json	2026-01-23 13:47:58.888824	otraaaa (copia)	\N	1	Eliminado con carpeta: otraaaa (copia)	016026bd2df66da955246f3b08c1f250b40f943d375977e76c6802ef05ff77cf	2388	5
 \.
 
 
@@ -6242,7 +6715,14 @@ COPY documentos."Archivos_Eliminados" ("Cod", "Nombre", "Ruta", "FechaEliminacio
 
 COPY documentos."Carpetas" ("Cod", "CodSerie", "CodSubSerie", "Estado", "EstadoCarpeta", "Nombre", "Descripcion", "Copia", "CarpetaOriginal", "CarpetaPadre", "FechaCreacion", "IndiceElectronico", "Delegado", "TipoCarpeta", "NivelVisualizacion", "SerieRaiz", "TRD", "FechaCierre", "NumeroFolios", "Soporte", "FrecuenciaConsulta", "UbicacionFisica", "Observaciones", "CreadoPor", "ModificadoPor", "FechaModificacion", "Tomo", "TotalTomos", "CodigoExpediente", "PalabrasClave", "FechaDocumentoInicial", "FechaDocumentoFinal", "ExpedienteRelacionado", "Entidad", "Oficina") FROM stdin;
 1	\N	\N	t	1	Nueva	nueva	f	\N	\N	2026-01-18 20:16:54.251631	\N	\N	4	\N	\N	\N	\N	0	\N	\N	\N	\N	1	\N	\N	1	1	\N	\N	\N	\N	\N	1	\N
-2	\N	\N	t	1	otro	adf	f	\N	1	2026-01-20 00:49:45.948441	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	\N	\N	1	1	\N	\N	\N	\N	\N	1	\N
+4	\N	\N	f	1	otraaaa	ASF	f	\N	3	2026-01-22 21:14:17.561226	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+6	\N	\N	f	1	otraaaa (copia)	ASF	t	4	3	2026-01-23 11:56:37.950639	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+8	\N	\N	f	1	otraaaa (copia)	ASF	t	4	3	2026-01-23 12:23:16.929613	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+3	\N	\N	f	1	nuevaa	nuevaa	f	\N	2	2026-01-22 20:51:10.521045	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+9	\N	\N	f	1	otraaaa (copia) (copia)	ASF	t	8	7	2026-01-23 12:30:14.112618	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+7	\N	\N	f	1	otraaaa (copia) (copia)	ASF	t	6	2	2026-01-23 11:56:59.922477	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+2	\N	\N	f	1	otro	adf	f	\N	1	2026-01-20 00:49:45.948441	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:52.689689	1	1	\N	\N	\N	\N	\N	1	\N
+5	\N	\N	f	1	otraaaa (copia)	ASF	t	4	1	2026-01-23 11:26:11.194318	\N	\N	4	1	1	\N	\N	0	\N	\N	\N	\N	1	1	2026-01-23 13:47:58.888824	1	1	\N	\N	\N	\N	\N	1	\N
 \.
 
 
@@ -6251,6 +6731,14 @@ COPY documentos."Carpetas" ("Cod", "CodSerie", "CodSubSerie", "Estado", "EstadoC
 --
 
 COPY documentos."Carpetas_Eliminadas" ("Cod", "Nombre", "TipoCarpeta", "CarpetaPadre", "SerieRaiz", "FechaCreacion", "FechaEliminacion", "EliminadoPor", "MotivoEliminacion", "NumeroFolios", "NumeroArchivos") FROM stdin;
+4	otraaaa	4	3	1	2026-01-22 21:14:17.561226	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: nuevaa	0	12
+6	otraaaa (copia)	4	3	1	2026-01-23 11:56:37.950639	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: nuevaa	0	12
+8	otraaaa (copia)	4	3	1	2026-01-23 12:23:16.929613	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: nuevaa	0	26
+3	nuevaa	4	2	1	2026-01-22 20:51:10.521045	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: otro	0	1
+9	otraaaa (copia) (copia)	4	7	1	2026-01-23 12:30:14.112618	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: otraaaa (copia) (copia)	0	11
+7	otraaaa (copia) (copia)	4	2	1	2026-01-23 11:56:59.922477	2026-01-23 13:47:52.689689	1	Eliminado con carpeta padre: otro	0	0
+2	otro	4	1	1	2026-01-20 00:49:45.948441	2026-01-23 13:47:52.689689	1	\N	0	24
+5	otraaaa (copia)	4	1	1	2026-01-23 11:26:11.194318	2026-01-23 13:47:58.888824	1	\N	0	12
 \.
 
 
@@ -6449,6 +6937,119 @@ BAJA	Baja	7
 --
 
 COPY documentos."Historial_Acciones" ("Cod", "Tabla", "RegistroCod", "Accion", "Usuario", "Fecha", "IP", "DetalleAnterior", "DetalleNuevo", "Observaciones") FROM stdin;
+1	Carpetas	4	MOVER	1	2026-01-23 11:24:31.146407	\N	CarpetaPadre: 2	CarpetaPadre: 3	Carpeta movida: otraaaa
+2	Carpetas	5	COPIAR	1	2026-01-23 11:26:11.194318	\N	\N	\N	Copiada desde carpeta 4. Carpetas: 1, Archivos: 0
+3	Carpetas	6	COPIAR	1	2026-01-23 11:56:37.950639	\N	\N	\N	Copiada desde carpeta 4. Carpetas: 1, Archivos: 0
+4	Carpetas	7	COPIAR	1	2026-01-23 11:56:59.922477	\N	\N	\N	Copiada desde carpeta 6. Carpetas: 1, Archivos: 0
+5	Carpetas	8	COPIAR	1	2026-01-23 12:23:16.929613	\N	\N	\N	Copiada desde carpeta 4. Carpetas: 1, Archivos: 0
+6	Carpetas	7	MOVER	1	2026-01-23 12:29:57.68959	\N	CarpetaPadre: 3	CarpetaPadre: 2	Carpeta movida: otraaaa (copia) (copia)
+7	Carpetas	9	COPIAR	1	2026-01-23 12:30:14.112618	\N	\N	\N	Copiada desde carpeta 8. Carpetas: 1, Archivos: 0
+8	Archivos	1	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+9	Archivos	2	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+10	Archivos	3	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+11	Archivos	4	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+12	Archivos	5	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+13	Archivos	6	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+14	Archivos	7	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+15	Archivos	8	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+16	Archivos	9	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+17	Archivos	10	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+18	Archivos	11	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+19	Archivos	12	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+20	Archivos	13	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+21	Archivos	14	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+22	Archivos	15	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+23	Archivos	16	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+24	Archivos	17	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+25	Archivos	18	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+26	Archivos	19	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+27	Archivos	20	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otro
+28	Archivos	21	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: otro
+29	Archivos	22	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: Grabación de pantalla 2025-11-01 155406.mp4. Motivo: Eliminado con carpeta: otro
+30	Archivos	23	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otro
+31	Archivos	24	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: SQLServer2022-x64-ESN-Dev.iso. Motivo: Eliminado con carpeta: otro
+32	Archivos	28	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: nuevaa
+33	Archivos	52	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: otraaaa
+34	Archivos	53	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md. Motivo: Eliminado con carpeta: otraaaa
+35	Archivos	54	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: MAPEO_APIS_INTERFACES.md. Motivo: Eliminado con carpeta: otraaaa
+36	Archivos	55	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otraaaa
+37	Archivos	56	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt. Motivo: Eliminado con carpeta: otraaaa
+38	Archivos	57	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otraaaa
+39	Archivos	58	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte3.txt. Motivo: Eliminado con carpeta: otraaaa
+40	Archivos	59	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte5.txt. Motivo: Eliminado con carpeta: otraaaa
+41	Archivos	60	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte4.txt. Motivo: Eliminado con carpeta: otraaaa
+42	Archivos	61	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte2.txt. Motivo: Eliminado con carpeta: otraaaa
+43	Archivos	62	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte1.txt. Motivo: Eliminado con carpeta: otraaaa
+44	Archivos	63	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: analog-period-389922-7b9f19681b38.json. Motivo: Eliminado con carpeta: otraaaa
+45	Carpetas	4	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otraaaa. Archivos: 12. Subcarpetas: 0
+46	Archivos	64	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+47	Archivos	65	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+48	Archivos	66	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: MAPEO_APIS_INTERFACES.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+49	Archivos	67	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otraaaa (copia)
+50	Archivos	68	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+51	Archivos	69	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+52	Archivos	70	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte3.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+53	Archivos	71	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte5.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+54	Archivos	72	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte4.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+55	Archivos	73	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte2.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+56	Archivos	74	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte1.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+57	Archivos	75	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: analog-period-389922-7b9f19681b38.json. Motivo: Eliminado con carpeta: otraaaa (copia)
+58	Carpetas	6	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otraaaa (copia). Archivos: 12. Subcarpetas: 0
+59	Archivos	88	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: Solicitud de Vinculacion - ID  CC  29543587 - No Solicitud  1376549 -.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+60	Archivos	91	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118716946363 (2) (1).pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+61	Archivos	94	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118716946363.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+62	Archivos	76	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+63	Archivos	77	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+64	Archivos	89	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: Autorizacion de Desembolso - ID  CC  29543587 - No Solicitud  1376549 -.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+65	Archivos	78	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: MAPEO_APIS_INTERFACES.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+66	Archivos	79	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otraaaa (copia)
+67	Archivos	90	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118644388827.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+68	Archivos	80	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+69	Archivos	81	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+70	Archivos	82	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte3.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+71	Archivos	92	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118716946363 (2).pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+72	Archivos	83	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte5.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+73	Archivos	93	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118719064580.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+74	Archivos	84	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte4.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+75	Archivos	85	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte2.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+76	Archivos	86	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte1.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+77	Archivos	95	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 2118716946363 (1).pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+78	Archivos	87	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: analog-period-389922-7b9f19681b38.json. Motivo: Eliminado con carpeta: otraaaa (copia)
+79	Archivos	96	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: Solicitud de Productos - ID  CC  29543587 - No Solicitud  1376549 -.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+80	Archivos	97	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: WhatsApp Image 2025-11-27 at 14.08.16.jpeg. Motivo: Eliminado con carpeta: otraaaa (copia)
+81	Archivos	98	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 4-1231756227932394029_Autorizacion_de_Desembolso.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+82	Archivos	99	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: T-2025142584-5840300.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+83	Archivos	100	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 4-1231756227932394029E0909_Respuesta_1_RESP_FINAL_SFC.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+84	Archivos	101	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: 4-1231756227932394029_Respuesta_RESP_FINAL_SFC.pdf. Motivo: Eliminado con carpeta: otraaaa (copia)
+85	Carpetas	8	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otraaaa (copia). Archivos: 26. Subcarpetas: 0
+86	Carpetas	3	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: nuevaa. Archivos: 51. Subcarpetas: 3
+87	Archivos	29	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+88	Archivos	30	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: MAPEO_APIS_INTERFACES.md. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+89	Archivos	31	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+90	Archivos	32	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+91	Archivos	33	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+92	Archivos	34	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte3.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+93	Archivos	35	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte5.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+94	Archivos	36	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte4.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+95	Archivos	37	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte2.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+96	Archivos	38	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte1.txt. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+97	Archivos	39	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Archivo eliminado: analog-period-389922-7b9f19681b38.json. Motivo: Eliminado con carpeta: otraaaa (copia) (copia)
+98	Carpetas	9	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otraaaa (copia) (copia). Archivos: 11. Subcarpetas: 0
+99	Carpetas	7	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otraaaa (copia) (copia). Archivos: 11. Subcarpetas: 1
+100	Carpetas	2	ELIMINAR	1	2026-01-23 13:47:52.689689	\N	\N	\N	Carpeta eliminada: otro. Archivos: 86. Subcarpetas: 6
+101	Archivos	40	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: softsolutions20223-nublusoftapi-8a5edab282632443.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+102	Archivos	41	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: PLAN_MIGRACION_FRONTEND_NUBLUSOFT.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+103	Archivos	42	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: MAPEO_APIS_INTERFACES.md. Motivo: Eliminado con carpeta: otraaaa (copia)
+104	Archivos	43	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: parte 2.docx. Motivo: Eliminado con carpeta: otraaaa (copia)
+105	Archivos	44	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: GUIA_COMPLETA_FIRMA_ELECTRONICA_NOTIFICACIONES.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+106	Archivos	45	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte6.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+107	Archivos	46	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte3.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+108	Archivos	47	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte5.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+109	Archivos	48	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte4.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+110	Archivos	49	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte2.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+111	Archivos	50	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: guia_firma_notificaciones_parte1.txt. Motivo: Eliminado con carpeta: otraaaa (copia)
+112	Archivos	51	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Archivo eliminado: analog-period-389922-7b9f19681b38.json. Motivo: Eliminado con carpeta: otraaaa (copia)
+113	Carpetas	5	ELIMINAR	1	2026-01-23 13:47:58.888824	\N	\N	\N	Carpeta eliminada: otraaaa (copia). Archivos: 12. Subcarpetas: 0
 \.
 
 
@@ -6494,15 +7095,16 @@ COPY documentos."Notificaciones" ("Cod", "Entidad", "UsuarioDestino", "UsuarioOr
 
 COPY documentos."Oficinas" ("Cod", "Nombre", "Estado", "Entidad", "CodigoSerie", "Icono", "Codigo", "OficinaPadre", "Responsable", "Telefono", "Correo", "Ubicacion", "NivelJerarquico", "FechaCreacion", "Sigla") FROM stdin;
 1	Despacho del Alcalde	t	1	\N	\N	100	\N	1	\N	\N	\N	1	2025-12-31 10:35:24.124692	DA
-2	Secretaría General	t	1	\N	\N	200	\N	2	\N	\N	\N	1	2025-12-31 10:35:24.124692	SG
-3	Secretaría de Hacienda	t	1	\N	\N	300	\N	\N	\N	\N	\N	1	2025-12-31 10:35:24.124692	SH
-4	Secretaría de Planeación	t	1	\N	\N	400	\N	\N	\N	\N	\N	1	2025-12-31 10:35:24.124692	SP
 5	Ventanilla Única de Correspondencia	t	1	\N	\N	201	2	3	\N	\N	\N	2	2025-12-31 10:35:24.124692	VUC
 6	Archivo Central	t	1	\N	\N	202	2	\N	\N	\N	\N	2	2025-12-31 10:35:24.124692	AC
 7	Gestión Documental	t	1	\N	\N	203	2	\N	\N	\N	\N	2	2025-12-31 10:35:24.124692	GD
 1	Despacho del Gobernador	t	2	\N	\N	100	\N	5	\N	\N	\N	1	2025-12-31 10:35:24.124692	DG
 2	Secretaría General	t	2	\N	\N	200	\N	6	\N	\N	\N	1	2025-12-31 10:35:24.124692	SG
 3	Secretaría de Hacienda	t	2	\N	\N	300	\N	\N	\N	\N	\N	1	2025-12-31 10:35:24.124692	SH
+2	Secretaría General	t	1	\N	\N	200	\N	2	\N	\N	\N	\N	2025-12-31 10:35:24.124692	SG
+4	Secretaría de Planeación	f	1	\N	\N	400	\N	\N	\N	\N	\N	1	2025-12-31 10:35:24.124692	SP
+3	Secretaría de Hacienda	f	1	\N	\N	300	\N	\N	\N	\N	\N	1	2025-12-31 10:35:24.124692	SH
+8	Nueva	t	1	\N	\N	106	\N	3	\N	\N	\N	\N	2026-01-24 10:15:49.999209	NE
 \.
 
 
@@ -6642,7 +7244,9 @@ HIBRIDO	Híbrido	Documento con componentes físicos y digitales
 -- Data for Name: Tablas_Retencion_Documental; Type: TABLE DATA; Schema: documentos; Owner: -
 --
 
-COPY documentos."Tablas_Retencion_Documental" ("Cod", "Nombre", "Tipo", "MesesVigencia", "Codigo", "TRDPadre", "Entidad", "DisposicionFinal", "TiempoGestion", "TiempoCentral", "Procedimiento", "Estado") FROM stdin;
+COPY documentos."Tablas_Retencion_Documental" ("Cod", "Nombre", "Tipo", "MesesVigencia", "Codigo", "TRDPadre", "Entidad", "DisposicionFinal", "TiempoGestion", "TiempoCentral", "Procedimiento", "Estado", "Descripcion", "CreadoPor", "FechaCreacion", "ModificadoPor", "FechaModificacion") FROM stdin;
+2	nueva serie br	Serie	\N	100	\N	1	CT	5	5	safasf	f	aslljksda	1	2026-01-24 08:38:46.20926	1	2026-01-24 09:59:58.601602
+1	Nueva seriee	Serie	\N	200	\N	1	E	5	5	lfafd	t	Contratos	1	2026-01-24 08:28:52.035959	1	2026-01-24 10:03:21.781526
 \.
 
 
@@ -6826,6 +7430,13 @@ COPY documentos."Transferencias_Documentales" ("Cod", "Entidad", "OficinaOrigen"
 --
 
 COPY documentos."Usuarios" ("Cod", "Nombres", "Apellidos", "Telefono", "Documento", "Usuario", "Contraseña", "Estado", "Entidad", "Correo", "TipoDocumento", "Cargo", "Foto", "FechaCreacion", "FechaUltimoAcceso", "FirmaDigitalRuta", "FirmaDigitalVence", "IntentosFallidos", "FechaBloqueo", "DebeCambiarContrasena", "FechaCambioContrasena", "NotificacionesCorreo", "OficinaPredeterminada") FROM stdin;
+7	Usuario	Vencido	3009999999	00000001	uvencido	123456	t	3	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+3	María Elena	López Rodríguez	3201234567	11223344	mlopez	123456	t	1	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+4	Pedro	Inactivo	3001111111	99999999	pinactivo	123456	f	1	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+6	Carlos Andrés	Martínez Ruiz	3178901234	44332211	cmartinez	123456	t	2	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+1	Administrador	Sistema	3001234567	12345678	admin	123456	t	1	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+5	Ana María	Gómez Torres	3156789012	55667788	agomez	123456	t	2	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
+2	Juan Carlos	Pérez García	3109876543	87654321	jperez	123456	t	1	\N	\N	\N	\N	2026-01-24 10:53:06.131605	\N	\N	\N	0	\N	f	\N	t	\N
 \.
 
 
@@ -6893,7 +7504,7 @@ COPY usuarios."Usuarios" ("Cod", "Nombres", "Apellidos", "Telefono", "Documento"
 6	Carlos Andrés	Martínez Ruiz	3178901234	44332211	cmartinez	123456	t	2	f	\N
 7	Usuario	Vencido	3009999999	00000001	uvencido	123456	t	3	f	\N
 5	Ana María	Gómez Torres	3156789012	55667788	agomez	123456	t	2	t	eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiI1IiwidW5pcXVlX25hbWUiOiJhZ29tZXoiLCJDb2QiOiI1IiwiVXN1YXJpbyI6ImFnb21leiIsIkVudGlkYWQiOiIyIiwiTm9tYnJlQ29tcGxldG8iOiJBbmEgTWFyw61hIEfDs21leiBUb3JyZXMiLCJOb21icmVFbnRpZGFkIjoiR29iZXJuYWNpw7NuIGRlbCBIdWlsYSIsIlNlc3Npb25JZCI6ImJmNzA1ZDQ3LTE3MzctNDZhYy1iMzA3LWZmZjEwMmNkYjY1NCIsImp0aSI6IjBjOTE1ZWNmLTg2ZTEtNDA5YS1hMWViLWYxNjZhNmZhZGIwNyIsImlhdCI6MTc2NzE5NTc0NCwicm9sZSI6WyJBZG1pbmlzdHJhZG9yIiwiQWRtaW5pc3RyYWRvciIsIkFkbWluaXN0cmFkb3IiLCJBZG1pbmlzdHJhZG9yIl0sIlJvbE9maWNpbmEiOlsiMToyIiwiMToxIiwiMToyIiwiMToxIl0sIm5iZiI6MTc2NzE5NTc0NCwiZXhwIjoxNzY3MjI0NTQ0LCJpc3MiOiJOdWJsdVNvZnRfRGV2IiwiYXVkIjoiTnVibHVTb2Z0Q2xpZW50c19EZXYifQ.MYfSE4a32n3hgOoN4VySk8C6l1eoXCMhXF2ZUc24QX4
-1	Administrador	Sistema	3001234567	12345678	admin	123456	t	1	t	eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiIxIiwidW5pcXVlX25hbWUiOiJhZG1pbiIsIkNvZCI6IjEiLCJVc3VhcmlvIjoiYWRtaW4iLCJFbnRpZGFkIjoiMSIsIk5vbWJyZUNvbXBsZXRvIjoiQWRtaW5pc3RyYWRvciBTaXN0ZW1hIiwiTm9tYnJlRW50aWRhZCI6IkFsY2FsZMOtYSBNdW5pY2lwYWwgZGUgTmVpdmEiLCJTZXNzaW9uSWQiOiI5ZDRjZTM2ZS1lZTdlLTQ0MGItODg3NS02NTQxZWU5OWJiOWMiLCJqdGkiOiI4NmVhMjQxNi1lY2Q0LTQyYzMtYTUzNi1mZTRjZmQxM2FhMmUiLCJpYXQiOjE3NjkwOTk5MzUsInJvbGUiOlsiQWRtaW5pc3RyYWRvciIsIkFkbWluaXN0cmFkb3IiLCJBZG1pbmlzdHJhZG9yIiwiQWRtaW5pc3RyYWRvciIsIkFkbWluaXN0cmFkb3IiLCJBZG1pbmlzdHJhZG9yIl0sIlJvbE9maWNpbmEiOlsiMTozIiwiMToyIiwiMToxIiwiMTozIiwiMToyIiwiMToxIl0sIm5iZiI6MTc2OTA5OTkzNSwiZXhwIjoxNzY5MTI4NzM1LCJpc3MiOiJOdWJsdVNvZnQiLCJhdWQiOiJOdWJsdVNvZnRDbGllbnRzIn0.NVvq3zFeDLOKGCcS3Y6XIVN24AKKaFhasQC_A3maOPE
+1	Administrador	Sistema	3001234567	12345678	admin	123456	t	1	t	eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiIxIiwidW5pcXVlX25hbWUiOiJhZG1pbiIsIkNvZCI6IjEiLCJVc3VhcmlvIjoiYWRtaW4iLCJFbnRpZGFkIjoiMSIsIk5vbWJyZUNvbXBsZXRvIjoiQWRtaW5pc3RyYWRvciBTaXN0ZW1hIiwiTm9tYnJlRW50aWRhZCI6IkFsY2FsZMOtYSBNdW5pY2lwYWwgZGUgTmVpdmEiLCJTZXNzaW9uSWQiOiI3MzI4NzgwZi00NjZiLTQyOGEtYjRkOC1iYWYzMjkyMWQyZmEiLCJqdGkiOiJkOTFlY2VhYy0yNmE4LTRhYWYtYTY2ZC0yOWY0M2FhZmFjYmUiLCJpYXQiOjE3NjkyNjA1MjEsInJvbGUiOlsiQWRtaW5pc3RyYWRvciIsIkFkbWluaXN0cmFkb3IiLCJBZG1pbmlzdHJhZG9yIiwiQWRtaW5pc3RyYWRvciIsIkFkbWluaXN0cmFkb3IiLCJBZG1pbmlzdHJhZG9yIl0sIlJvbE9maWNpbmEiOlsiMTozIiwiMToyIiwiMToxIiwiMTozIiwiMToyIiwiMToxIl0sIm5iZiI6MTc2OTI2MDUyMSwiZXhwIjoxNzY5Mjg5MzIxLCJpc3MiOiJOdWJsdVNvZnQiLCJhdWQiOiJOdWJsdVNvZnRDbGllbnRzIn0.PwmHsPbAuL2Jnd-S31fnIKhrK7v-Tjzbjgikd-SEfcY
 \.
 
 
@@ -6950,7 +7561,7 @@ SELECT pg_catalog.setval('documentos."Firmas_Archivos_Cod_seq"', 1, false);
 -- Name: Historial_Acciones_Cod_seq; Type: SEQUENCE SET; Schema: documentos; Owner: -
 --
 
-SELECT pg_catalog.setval('documentos."Historial_Acciones_Cod_seq"', 1, false);
+SELECT pg_catalog.setval('documentos."Historial_Acciones_Cod_seq"', 113, true);
 
 
 --
@@ -8114,10 +8725,24 @@ CREATE INDEX "IX_Usuarios_Usuario" ON usuarios."Usuarios" USING btree ("Usuario"
 
 
 --
+-- Name: Archivos TR_Archivos_NotificarIndice; Type: TRIGGER; Schema: documentos; Owner: -
+--
+
+CREATE TRIGGER "TR_Archivos_NotificarIndice" AFTER INSERT OR DELETE OR UPDATE ON documentos."Archivos" FOR EACH ROW EXECUTE FUNCTION documentos."F_NotificarCambioIndice"();
+
+
+--
 -- Name: Archivos TR_Archivos_NotifyNavIndex; Type: TRIGGER; Schema: documentos; Owner: -
 --
 
 CREATE TRIGGER "TR_Archivos_NotifyNavIndex" AFTER INSERT OR DELETE OR UPDATE OF "Estado" ON documentos."Archivos" FOR EACH ROW EXECUTE FUNCTION documentos."F_NotifyNavIndex_Archivos"();
+
+
+--
+-- Name: Carpetas TR_Carpetas_NotificarIndice; Type: TRIGGER; Schema: documentos; Owner: -
+--
+
+CREATE TRIGGER "TR_Carpetas_NotificarIndice" AFTER INSERT OR DELETE OR UPDATE ON documentos."Carpetas" FOR EACH ROW EXECUTE FUNCTION documentos."F_NotificarCambioCarpeta"();
 
 
 --
