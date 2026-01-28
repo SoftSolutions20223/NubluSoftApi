@@ -755,16 +755,39 @@ namespace NubluSoft_Core.Services
 
         public async Task<string?> ObtenerIndiceElectronicoAsync(long carpetaId)
         {
-            const string sql = @"
-                SELECT ""IndiceElectronico""
-                FROM documentos.""Carpetas""
-                WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true AND ""TipoCarpeta"" = 3";
-
             try
             {
                 using var connection = _connectionFactory.CreateConnection();
                 await connection.OpenAsync();
-                return await connection.QueryFirstOrDefaultAsync<string>(sql, new { CarpetaId = carpetaId });
+
+                // Verificar si es un expediente (TipoCarpeta = 3)
+                var carpetaInfo = await connection.QueryFirstOrDefaultAsync<(long? TipoCarpeta, string? IndiceElectronico)>(
+                    @"SELECT ""TipoCarpeta"", ""IndiceElectronico""
+                      FROM documentos.""Carpetas""
+                      WHERE ""Cod"" = @CarpetaId AND ""Estado"" = true",
+                    new { CarpetaId = carpetaId });
+
+                // Si no existe o no es expediente, retornar null
+                if (carpetaInfo.TipoCarpeta != 3)
+                    return null;
+
+                // Si el índice ya existe, retornarlo
+                if (!string.IsNullOrEmpty(carpetaInfo.IndiceElectronico))
+                    return carpetaInfo.IndiceElectronico;
+
+                // Si es expediente pero el índice es NULL, generarlo bajo demanda
+                _logger.LogInformation("Generando índice electrónico bajo demanda para expediente {CarpetaId}", carpetaId);
+
+                await connection.ExecuteAsync(
+                    "SELECT documentos.\"F_GenerarIndiceElectronico\"(@CarpetaId)",
+                    new { CarpetaId = carpetaId });
+
+                // Obtener el índice recién generado
+                return await connection.QueryFirstOrDefaultAsync<string>(
+                    @"SELECT ""IndiceElectronico""
+                      FROM documentos.""Carpetas""
+                      WHERE ""Cod"" = @CarpetaId",
+                    new { CarpetaId = carpetaId });
             }
             catch (Exception ex)
             {
